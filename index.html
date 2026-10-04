@@ -1,0 +1,2154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HÀNH TRÌNH từ ZERO - HERO / 1000$ - 1000000$ BỞI HALODAE</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #07050f; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { width: min(100vw, calc(100vh * 1024 / 571)); height: auto; aspect-ratio: 1024 / 571; cursor: default; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1024" height="571"></canvas>
+<script>
+/* BẢN WEB ĐỒNG BỘ 100% VỚI MAIN.PY:
+   - TIỀN ($ Capital) CHỈ ĐƯỢC TÍNH TỪ NHẬT KÝ GIAO DỊCH HÀNG NGÀY (Vốn đầu $1,000 + Lãi thực tế).
+   - Không cộng tiền ảo từ Mốc vốn, Quy tắc, Boss, Kỷ luật hay Bonus.
+   - Có ô nhập số tiền kiếm được hôm nay (dương = lãi, âm = lỗ).
+   - Có trang "Rút về túi" (quy đổi Xu vàng sang Kim cương).
+   - Sấm sét (⚡): thể hiện số ngày trade trong tuần (Thứ 2 đến Thứ 6 = 5 ngày), mỗi ngày trade trừ 1.
+   - Bảng quy tắc: bỏ 5 Lv, 10 Lv, 15 Lv, 20 Lv. */
+"use strict";
+const W = 1024, H = 571;
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+const GREEN = "#2ed573", GOLD = "#ffcc00", RED = "#ff4757", CYAN = "#00d2ff", PURPLE = "#b464ff";
+const WHITE = "#fff", MUTED = "#a0afc8", TEXT_LIGHT = "#e8e4ee";
+const SAVE_KEY = "zero_hero_halodae_v4";
+
+const MILESTONES = [
+  ["Mốc 1: 1,000$", "(Khởi đầu)", 1000, [655, 232, 68, 30], 50],
+  ["Mốc 2: 2,000$", "", 2000, [673, 274, 74, 30], 100],
+  ["Mốc 3: 5,000$", "", 5000, [643, 338, 70, 30], 150],
+  ["Mốc 4: 10,000$", "", 10000, [642, 407, 68, 30], 200],
+  ["Mốc 5: 25,000$", "", 25000, [716, 406, 74, 30], 300],
+  ["Mốc 6: 50,000$", "", 50000, [841, 410, 74, 30], 400],
+  ["Mốc 7: 100,000$", "", 100000, [811, 331, 80, 30], 500],
+  ["Mốc 8: 250,000$", "", 250000, [812, 237, 82, 30], 700],
+  ["Mốc 9: 500,000$", "", 500000, [938, 405, 120, 30], 900],
+  ["Mốc 10: 1,000,000$", "(Về đích)", 1000000, [945, 275, 108, 30], 1500],
+];
+const RULES = [
+  "NÂNG CẤP BỘ SƯU TẬP QUY TẮC",
+  "NÂNG CẤP ĐẶC TÍNH QUY TẮC",
+  "QUY TẮC BẢO TOÀN VỐN",
+  "KỶ LUẬT VÀNG TRADING",
+];
+const BOSSES = [["BOSS TÂM LÝ", 300], ["BOSS QUẢN LÝ VỐN", 450], ["BOSS RÚT LÃI ĐỀU", 750]];
+const DISCIPLINE = ["Kỷ luật cao", "Kiên nhẫn", "Chấp nhận rủi ro", "Học hỏi liên tục"];
+const BONUS = [
+  ["Tự động hóa", "Tăng thêm +25% XP kỷ luật"],
+  ["Phân tích kỹ thuật", "Tăng thêm +25% XP phân tích"],
+  ["Hỗ trợ cộng đồng", "Tăng thêm +50% XP đồng đội"],
+  ["Bảo vệ tài khoản", "Tăng thêm +50% XP quản trị rủi ro"],
+  ["Khóa học chuyên sâu", "Nhân đôi toàn bộ kinh nghiệm (x2 XP)"],
+];
+const START_CAPITAL = 1000, GOAL = 1000000;
+
+function defaultTargetForDay(d) {
+  if (d <= 100) return 100;
+  if (d <= 300) return 250;
+  if (d <= 600) return 800;
+  if (d <= 900) return 1500;
+  return 2490;
+}
+
+/* ---------- vị trí giao diện ---------- */
+const R = (x, y, w, h) => ({ x, y, w, h, right: x + w, bottom: y + h, cx: x + w / 2, cy: y + h / 2 });
+const mileRow = i => R(14, 182 + 16 * i, 212, 16);
+const ruleRow = i => R(14, 382 + 15 * i, 214, 15);
+const bossRow = i => R(14, 510 + 16 * i, 214, 16);
+const discRow = i => R(424, 401 + 38 * i, 170, 38);
+const discNumCy = i => Math.round(413 + 37.8 * i);
+const BONUS_X = [607, 688, 769, 851, 932];
+const bonusRect = i => R(BONUS_X[i], 459, 77, 48);
+const nodeRect = i => { const [cx, cy, w, h] = MILESTONES[i][3]; return R(cx - (w >> 1), cy - (h >> 1), w, h); };
+const MAP_PATH = [
+  [655, 232], [673, 274], [643, 338], [642, 407], [716, 406],
+  [841, 410], [811, 331], [812, 237], [938, 405], [945, 275]
+];
+const AVATAR = R(14, 61, 100, 83), RES = R(783, 58, 234, 30), DAILY = R(816, 92, 200, 86), DAILY_BTN = R(824, 112, 184, 26);
+
+const MODAL = R(32, 18, 960, 535), M_CLOSE = R(944, 24, 36, 26);
+const TAB_DAILY_BTN = R(48, 24, 150, 28);
+const TAB_POCKET_BTN = R(204, 24, 150, 28);
+const TAB_STATS_BTN = R(360, 24, 160, 28);
+const TAB_BACKUP_BTN = R(526, 24, 160, 28);
+const BTN_TIME_INFO = R(692, 24, 246, 28);
+
+const INPUT_BOX_RECT = R(326, 126, 90, 28);
+const BTN_Q_M50 = R(424, 126, 40, 28), BTN_Q_P50 = R(468, 126, 40, 28), BTN_Q_P100 = R(512, 126, 46, 28), BTN_Q_P250 = R(562, 126, 46, 28);
+const BTN_SUBMIT_TODAY = R(618, 126, 170, 28);
+
+const PAGE_SIZE = 50, PAGE_COUNT = 20;
+const M_PREV = R(790, 166, 90, 22), M_NEXT = R(890, 166, 86, 22);
+const dayCell = k => R(52 + Math.floor(k / 10) * 186, 196 + (k % 10) * 33, 182, 29);
+
+const VND_RATE = 26000;
+const CURRENCY_NAMES = ["Vàng", "Kim Cương", "Bank"];
+const CURRENCY_ICONS = ["🪙", "💎", "🏦"];
+
+// Các phần tử trong Tab 1 (Quy đổi 3 chiều: Vàng <-> Kim Cương <-> Bank)
+const BTN_CONV_FROM_0 = R(100, 248, 96, 26);   // [🪙 Vàng]
+const BTN_CONV_FROM_1 = R(202, 248, 110, 26);  // [💎 Kim Cương]
+const BTN_CONV_FROM_2 = R(318, 248, 96, 26);   // [🏦 Bank]
+
+const BTN_CONV_SWAP = R(432, 248, 68, 26);     // [ ⇄ Đổi ]
+
+const BTN_CONV_TO_0 = R(560, 248, 96, 26);     // [🪙 Vàng]
+const BTN_CONV_TO_1 = R(662, 248, 110, 26);    // [💎 Kim Cương]
+const BTN_CONV_TO_2 = R(778, 248, 96, 26);     // [🏦 Bank]
+
+const BANK_INP_RECT = R(144, 284, 96, 28);
+const BTN_B_10 = R(248, 284, 40, 28);
+const BTN_B_50 = R(294, 284, 40, 28);
+const BTN_B_100 = R(340, 284, 48, 28);
+const BTN_B_500 = R(394, 284, 48, 28);
+const BTN_B_ALL = R(448, 284, 80, 28);
+const BTN_B_CLR = R(534, 284, 52, 28);
+
+// Tương thích ngược với các tên cũ nếu có
+const BTN_B_ALL_COINS = BTN_B_ALL;
+const BTN_B_ALL_GEMS = BTN_B_ALL;
+const BTN_TO_BANK = R(140, 356, 330, 40);
+const BTN_TO_COINS = R(540, 356, 330, 40);
+
+const BANK_PREV_RECT = R(70, 320, 844, 30);
+const BTN_EXECUTE_CONV = R(210, 358, 564, 38);
+
+// Modal cảnh báo Cháy Tài Khoản (Margin Call Modal)
+const MARGIN_MODAL_RECT = R(Math.floor(W / 2) - 280, Math.floor(H / 2) - 165, 560, 330);
+const BTN_MARGIN_ACTION = R(Math.floor(W / 2) - 250, Math.floor(H / 2) + 96, 500, 44);
+
+// Tab 2 & 3 rects
+const CHART_RECT = R(58, 198, 904, 262);
+const METRIC_CARD_1 = R(58, 124, 214, 64);
+const METRIC_CARD_2 = R(288, 124, 214, 64);
+const METRIC_CARD_3 = R(518, 124, 214, 64);
+const METRIC_CARD_4 = R(748, 124, 214, 64);
+const CHART_BOTTOM_BAR = R(58, 470, 904, 52);
+
+const CHECKLIST_ITEMS = [
+  "Dừng lỗ (SL) & Chốt lời (TP) rõ ràng",
+  "Rủi ro lệnh <= 1% - 2% tổng tài khoản",
+  "Tâm lý bình tĩnh, KHÔNG FOMO / gỡ gạc",
+  "Tín hiệu đúng 100% quy tắc HaloDae",
+];
+const CHK_ROWS = [R(72, 172, 412, 32), R(72, 210, 412, 32), R(72, 248, 412, 32), R(72, 286, 412, 32)];
+const CHK_STATUS_RECT = R(72, 332, 412, 42);
+const CHK_QUOTE_RECT = R(72, 384, 412, 126);
+
+const BTN_EXPORT_CSV = R(542, 185, 400, 38);
+const BTN_EXPORT_JSON = R(542, 230, 400, 38);
+const BTN_IMPORT_JSON = R(542, 275, 400, 38);
+const BTN_RESET_DATA = R(542, 320, 400, 36);
+const BACKUP_INFO_RECT = R(542, 366, 400, 144);
+
+const hit = (r, p) => p.x >= r.x && p.x < r.right && p.y >= r.y && p.y < r.bottom;
+const inflate = (r, dx, dy) => R(r.x - dx / 2, r.y - dy / 2, r.w + dx, r.h + dy);
+
+function getSystemEnergy() {
+  const d = new Date().getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+  const names = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+  let energy = 0;
+  if (d >= 1 && d <= 5) energy = 6 - d;
+  let label = (d >= 1 && d <= 5) ? `${names[d]} (${energy}/5 sét)` : `${names[d]} (Nghỉ cuối tuần)`;
+  return { energy, label, name: names[d] };
+}
+
+/* ---------- trạng thái game ---------- */
+const G = {
+  level: 1, xp: 0, coins: 1000, gems: 1000, withdrawnGems: 0,
+  peakCapital: 1000,
+  maxEnergy: 5,
+  get energy() { return getSystemEnergy().energy; },
+  get weekdayInfo() { return getSystemEnergy().label; },
+  get bank() { return this.withdrawnGems; },
+  set bank(v) { this.withdrawnGems = v; },
+  days: Array(1000).fill(false),
+  dayProfits: Array(1000).fill(0).map((_, i) => defaultTargetForDay(i + 1)),
+  dayTimestamps: Array(1000).fill(0),
+  daysRew: Array(1000).fill(false),
+  rules: Array(4).fill(false), rulesRew: Array(4).fill(false),
+  bosses: Array(3).fill(false), bossesRew: Array(3).fill(false),
+  disc: Array(4).fill(false), discRew: Array(4).fill(false),
+  bonus: Array(5).fill(false), claimed: Array(10).fill(false),
+  checklist: Array(4).fill(false), confirmReset: false,
+  convFrom: 0, convTo: 2,
+  marginCallOpen: false,
+  modal: false, modalTab: 0, page: 0, capital: 1000,
+  inputText: "100", inputFocused: false,
+  bankInputText: "10", bankInputFocused: false,
+};
+const V = { cap: 1000, xp: 0, anim: 0, banner: 0, modalAnim: 0 };
+let particles = [], floats = [], mouse = { x: -1, y: -1 };
+
+const maxXp = () => Math.floor(100 * Math.pow(1.35, G.level - 1));
+const doneDays = () => G.days.reduce((a, d) => a + (d ? 1 : 0), 0);
+function nextDayIdx() {
+  for (let i = 0; i < 1000; i++) if (!G.days[i]) return i;
+  return 999;
+}
+function syncInputWithNextDay() {
+  G.inputText = String(G.dayProfits[nextDayIdx()]);
+}
+function recalc() {
+  G.capital = G.coins;
+  if (!G.peakCapital) G.peakCapital = Math.max(START_CAPITAL, G.coins);
+  else G.peakCapital = Math.max(G.peakCapital, START_CAPITAL, G.coins);
+}
+function hpRatio() {
+  const maxHp = Math.max(START_CAPITAL, G.peakCapital || START_CAPITAL);
+  const curHp = Math.max(0, G.capital);
+  if (maxHp <= 0) return 1.0;
+  return Math.max(0.0, Math.min(1.0, curHp / maxHp));
+}
+function isDayFrozen(idx) {
+  if (!G.days[idx]) return false;
+  const ts = G.dayTimestamps[idx];
+  if (!ts || ts <= 0) return false;
+  const nowSec = Math.floor(Date.now() / 1000);
+  return (nowSec - ts) >= 86400;
+}
+function checkMarginCall() {
+  if (G.coins <= 0) {
+    G.marginCallOpen = true;
+    return true;
+  }
+  return false;
+}
+function recoverMarginCall() {
+  if (G.coins <= 0 && G.gems > 0) {
+    // Lần cháy 1: Nạp 1,000 Kim Cương sang Vàng (hoặc toàn bộ KC còn lại nếu < 1,000)
+    const amt = Math.min(1000, G.gems);
+    G.gems -= amt;
+    G.coins = amt;
+    G.capital = G.coins;
+    G.peakCapital = Math.max(START_CAPITAL, G.coins);
+    G.marginCallOpen = false;
+    play("buff");
+    burst(W / 2, H / 2, GOLD, 35);
+    floatText(`Hồi sinh tài khoản! +${amt.toLocaleString("en-US")} Xu Vàng sẵn sàng trade!`, W / 2, H / 2, GREEN);
+    save();
+  } else if (G.coins <= 0 && G.gems <= 0) {
+    // Lần cháy 2: Rút vốn khẩn cấp $1,000 từ Ví Bank (ghi nhận nợ)
+    G.gems = 0;
+    G.withdrawnGems -= 1000;
+    G.coins = 1000;
+    G.capital = G.coins;
+    G.peakCapital = Math.max(START_CAPITAL, G.coins);
+    G.marginCallOpen = false;
+    play("buff");
+    burst(W / 2, H / 2, GOLD, 35);
+    floatText(`Rút vốn khẩn cấp $1,000! Bank ghi nhận nợ: $${G.withdrawnGems.toLocaleString("en-US")}`, W / 2, H / 2, GOLD);
+    save();
+  }
+}
+function nextGoal() { for (const m of MILESTONES) if (m[2] > G.capital) return m[2]; return GOAL; }
+
+const KEYS = ["level", "xp", "coins", "gems", "withdrawnGems", "peakCapital", "energy", "days", "dayProfits", "dayTimestamps", "daysRew", "rules", "rulesRew", "bosses", "bossesRew", "disc", "discRew", "bonus", "claimed", "checklist"];
+const SNAKE_TO_CAMEL = {
+  withdrawn_gems: "withdrawnGems",
+  peak_capital: "peakCapital",
+  day_profits: "dayProfits",
+  day_timestamps: "dayTimestamps",
+  days_rewarded: "daysRew",
+  rules_rewarded: "rulesRew",
+  bosses_rewarded: "bossesRew",
+  disc_rewarded: "discRew"
+};
+function getBackupVal(o, k) {
+  if (o[k] !== undefined) return o[k];
+  for (const [s, c] of Object.entries(SNAKE_TO_CAMEL)) {
+    if (c === k && o[s] !== undefined) return o[s];
+    if (s === k && o[c] !== undefined) return o[c];
+  }
+  return undefined;
+}
+function save() {
+  try {
+    const o = { version: 4 };
+    KEYS.forEach(k => o[k] = G[k]);
+    localStorage.setItem(SAVE_KEY, JSON.stringify(o));
+  } catch (e) {}
+}
+function load() {
+  try {
+    let raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) raw = localStorage.getItem("zero_hero_halodae_v3");
+    const o = JSON.parse(raw || "null");
+    if (!o || (o.version !== 3 && o.version !== 4)) return;
+    KEYS.forEach(k => {
+      const val = getBackupVal(o, k);
+      if (val === undefined) return;
+      if (Array.isArray(G[k])) {
+        if (Array.isArray(val) && val.length === G[k].length) {
+          if (k === "dayProfits" || k === "dayTimestamps") G[k] = val.map(Number);
+          else G[k] = val.map(Boolean);
+        }
+      } else if (typeof val === "number") G[k] = val;
+    });
+
+    // Nếu dữ liệu cũ đã có ngày hoàn thành mà chưa có timestamp: đóng băng tự động (> 24h)
+    for (let i = 0; i < 1000; i++) {
+      if (G.days[i] && (!G.dayTimestamps[i] || G.dayTimestamps[i] <= 0)) {
+        G.dayTimestamps[i] = 1;
+      }
+    }
+
+    // Di chuyển từ version 3 lên version 4
+    if (o.version === 3) {
+      let totalPnl = 0;
+      G.days.forEach((d, i) => { if (d) totalPnl += G.dayProfits[i]; });
+      G.coins = Math.max(1000, START_CAPITAL + totalPnl);
+      G.gems = Math.max(1000, G.gems);
+    }
+
+    G.capital = G.coins;
+    recalc();
+    checkMarginCall();
+  } catch (e) {}
+}
+
+/* ---------- âm thanh (WebAudio) ---------- */
+let actx = null;
+function beep(freqs, dur, vol) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = actx.currentTime, step = dur / freqs.length;
+    freqs.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = f; g.gain.setValueAtTime(vol, t0 + i * step);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + (i + 1) * step);
+      o.connect(g); g.connect(actx.destination); o.start(t0 + i * step); o.stop(t0 + (i + 1) * step);
+    });
+  } catch (e) {}
+}
+const SND = { check: [659, 880, 1046], uncheck: [440, 330], coin: [988, 1318], level: [523, 659, 784, 1046, 1318], buff: [784, 988, 1175] };
+const play = n => beep(SND[n], n === "level" ? 0.5 : 0.18, 0.12);
+
+/* ---------- hiệu ứng đồ họa động ---------- */
+function toRgba(color, a) {
+  if (!color) return `rgba(255,255,255,${a})`;
+  if (color.startsWith("rgba")) return color.replace(/[\d\.]+\)$/, `${a})`);
+  if (color.startsWith("rgb(")) return color.replace("rgb(", "rgba(").replace(")", `,${a})`);
+  if (color.startsWith("#")) {
+    let c = color.slice(1);
+    if (c.length === 3) c = c.split("").map(x => x + x).join("");
+    const num = parseInt(c, 16);
+    return `rgba(${(num >> 16) & 255},${(num >> 8) & 255},${num & 255},${a})`;
+  }
+  return color;
+}
+
+function drawSparkleStar(cx, cy, radius, color, alpha = 1, angle = 0) {
+  if (radius <= 0.5 || alpha <= 0.01) return;
+  const aClamped = Math.max(0, Math.min(1, alpha));
+  const r = radius;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  // Quầng sáng tâm
+  ctx.fillStyle = toRgba(color, aClamped * 0.35);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4 cánh diamond chính
+  ctx.fillStyle = toRgba(color, aClamped * 0.95);
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(0, r * 0.22);
+  ctx.lineTo(-r, 0);
+  ctx.lineTo(0, -r * 0.22);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(0, r);
+  ctx.lineTo(r * 0.22, 0);
+  ctx.lineTo(0, -r);
+  ctx.lineTo(-r * 0.22, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tâm trắng chói
+  ctx.fillStyle = `rgba(255,255,255,${aClamped})`;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(1, r * 0.28), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGlowRect(r, color, maxAlpha = 0.15, radius = 6, glowSize = 4) {
+  ctx.save();
+  for (let i = 1; i <= glowSize; i++) {
+    const a = maxAlpha * (1.0 - (i - 1) / glowSize);
+    if (a <= 0.005) continue;
+    ctx.strokeStyle = toRgba(color, a);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(r.x - i, r.y - i, r.w + i * 2, r.h + i * 2, radius + i);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGlowCircle(cx, cy, radius, color, maxAlpha = 0.2, glowSize = 4) {
+  ctx.save();
+  for (let i = 1; i <= glowSize; i++) {
+    const a = maxAlpha * (1.0 - (i - 1) / glowSize);
+    if (a <= 0.005) continue;
+    ctx.strokeStyle = toRgba(color, a);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + i, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawElectricCrackle(cx, cy, length = 12, color = "#fff078") {
+  const branches = 1 + Math.floor(Math.random() * 2);
+  ctx.save();
+  for (let b = 0; b < branches; b++) {
+    let angle = Math.random() * Math.PI * 2;
+    const segs = 3 + Math.floor(Math.random() * 2);
+    let px = cx, py = cy;
+    const dist = length / segs;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    for (let s = 0; s < segs; s++) {
+      angle += (Math.random() - 0.5) * 1.6;
+      px += Math.cos(angle) * dist;
+      py += Math.sin(angle) * dist;
+      ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    // Core white line
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawDeskMonitorGlow() {
+  const pulse1 = (Math.sin(V.anim * 1.6) + 1.0) / 2.0;
+  const pulse2 = (Math.sin(V.anim * 2.3 + 1.2) + 1.0) / 2.0;
+  ctx.save();
+  const g1 = ctx.createRadialGradient(320, 310, 10, 320, 310, 110);
+  g1.addColorStop(0, `rgba(0,210,255,${(0.06 + 0.08 * pulse1).toFixed(3)})`);
+  g1.addColorStop(1, "rgba(0,210,255,0)");
+  ctx.fillStyle = g1;
+  ctx.fillRect(210, 230, 220, 160);
+
+  const g2 = ctx.createRadialGradient(470, 315, 10, 470, 315, 110);
+  g2.addColorStop(0, `rgba(46,213,115,${(0.05 + 0.07 * pulse2).toFixed(3)})`);
+  g2.addColorStop(1, "rgba(46,213,115,0)");
+  ctx.fillStyle = g2;
+  ctx.fillRect(360, 230, 220, 160);
+  ctx.restore();
+}
+
+class ClickRipple {
+  constructor(x, y, color = CYAN, maxRadius = 30) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.maxRadius = maxRadius;
+    this.radius = 4;
+    this.life = 18;
+    this.age = 0;
+  }
+  update() {
+    this.age++;
+    this.radius += (this.maxRadius - 4) / this.life;
+  }
+  alive() {
+    return this.age < this.life;
+  }
+  draw() {
+    if (!this.alive() || this.radius < 2) return;
+    const progress = this.age / this.life;
+    const alpha = 0.85 * (1.0 - progress);
+    const lw = Math.max(1, Math.round(3 * (1.0 - progress)));
+    ctx.save();
+    ctx.strokeStyle = toRgba(this.color, alpha);
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+let ripples = [];
+function burstRipple(x, y, color = CYAN, maxRadius = 32) {
+  ripples.push(new ClickRipple(x, y, color, maxRadius));
+}
+
+const AMBIENT_COLORS = ["#ffd73c", "#00dcff", "#2ed573", "#be82ff", "#fff5dc"];
+class AmbientParticle {
+  constructor(randomY = true) {
+    this.reset(randomY);
+  }
+  reset(randomY = true) {
+    this.x = 20 + Math.random() * (W - 40);
+    this.y = randomY ? (20 + Math.random() * (H - 40)) : (H + Math.random() * 20);
+    this.vx = (Math.random() - 0.5) * 0.7;
+    this.vy = -(0.35 + Math.random() * 0.5);
+    this.size = 1.6 + Math.random() * 2.2;
+    this.phase = Math.random() * Math.PI * 2;
+    this.color = AMBIENT_COLORS[Math.floor(Math.random() * AMBIENT_COLORS.length)];
+    this.isStar = Math.random() < 0.35;
+    this.age = Math.floor(Math.random() * 100);
+  }
+  update() {
+    this.age++;
+    this.x += this.vx + Math.sin(this.age * 0.04 + this.phase) * 0.35;
+    this.y += this.vy;
+    if (this.y < -15 || this.x < -10 || this.x > W + 10) {
+      this.reset(false);
+    }
+  }
+  draw() {
+    const twinkle = (Math.sin(this.age * 0.08 + this.phase) + 1.0) / 2.0;
+    const alpha = (80 + 140 * twinkle) / 255;
+    if (this.isStar && twinkle > 0.4) {
+      drawSparkleStar(this.x, this.y, this.size * 1.5, this.color, alpha, this.phase + this.age * 0.04);
+    } else {
+      ctx.save();
+      ctx.fillStyle = toRgba(this.color, alpha);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+const ambientParticles = Array.from({ length: 38 }, () => new AmbientParticle(true));
+
+function burst(x, y, color, n = 14, kind = null) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 4.5;
+    const k = kind || (n >= 20 ? (Math.random() < 0.4 ? "star" : (Math.random() < 0.5 ? "confetti" : "circle")) : "circle");
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 1.5,
+      age: 0,
+      life: 22 + Math.floor(Math.random() * 20),
+      size: 2.5 + Math.random() * 2.7,
+      color,
+      kind: k,
+      angle: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.3
+    });
+  }
+}
+const floatText = (text, x, y, color) => floats.push({ text, x, y: y - 8, color, age: 0, life: 55 });
+
+function give(xp = 0) {
+  if (xp) {
+    let multXp = 1;
+    if (G.bonus[0]) multXp += 0.25;
+    if (G.bonus[1]) multXp += 0.25;
+    if (G.bonus[2]) multXp += 0.50;
+    if (G.bonus[3]) multXp += 0.50;
+    if (G.bonus[4]) multXp *= 2;
+    xp = Math.floor(xp * multXp);
+  }
+  G.xp += xp;
+  while (G.xp >= maxXp()) {
+    G.xp -= maxXp(); G.level++;
+    V.banner = 150; play("level");
+    for (let i = 0; i < 60; i++) {
+      burst(W * 0.45, H * 0.4, [GOLD, GREEN, CYAN, PURPLE, "#ffffff"][i % 5], 1, ["circle", "star", "confetti"][i % 3]);
+    }
+    burstRipple(W * 0.45, H * 0.4, GOLD, 55);
+  }
+}
+
+/* ---------- thao tác nhật ký ---------- */
+function submitToday() {
+  if (G.checklist.filter(Boolean).length < 4) {
+    play("uncheck");
+    floatText("Chưa đủ 4/4 tiêu chí kỷ luật! Hãy hoàn thành Checklist trước khi vào lệnh!", W / 2, 140, RED);
+    G.modalTab = 3;
+    return;
+  }
+
+  const idx = nextDayIdx();
+  let val = parseInt(G.inputText.trim(), 10);
+  if (isNaN(val)) val = G.dayProfits[idx];
+
+  G.dayProfits[idx] = val;
+  G.days[idx] = true;
+  G.dayTimestamps[idx] = Math.floor(Date.now() / 1000);
+
+  // Giao dịch hàng ngày cộng/trừ trực tiếp vào Xu Vàng (vốn trade)
+  G.coins += val;
+  G.capital = G.coins;
+
+  play("coin");
+  if (!G.daysRew[idx]) { G.daysRew[idx] = true; give(50); }
+
+  const sign = val >= 0 ? "+" : "";
+  const col = val >= 0 ? GREEN : RED;
+  floatText(`Ngày ${idx + 1}: ${sign}$${val.toLocaleString("en-US")}`, W / 2, 140, col);
+  burst(W / 2, 140, col, 20);
+
+  recalc();
+  const nxt = nextDayIdx();
+  G.page = Math.floor(nxt / PAGE_SIZE);
+  syncInputWithNextDay();
+  save();
+  checkMarginCall();
+}
+
+function toggleDay(idx, x, y) {
+  const val = G.dayProfits[idx];
+  if (G.days[idx]) {
+    // Đang bật -> Kiểm tra khóa 24h
+    if (isDayFrozen(idx)) {
+      play("uncheck");
+      floatText(`Ngày ${idx + 1} đã khóa đóng băng sau 24h để rèn tính trung thực tuyệt đối!`, W / 2, 140, RED);
+      return;
+    }
+    // Cho phép hủy trong vòng 24h
+    G.days[idx] = false;
+    G.dayTimestamps[idx] = 0;
+    G.coins -= val;
+    G.capital = G.coins;
+    play("uncheck");
+    const sign = val >= 0 ? "+" : "";
+    floatText(`Hủy ${sign}$${val.toLocaleString("en-US")}`, x, y, MUTED);
+    checkMarginCall();
+  } else {
+    // Chưa bật -> Cần 4/4 checklist kỷ luật
+    if (G.checklist.filter(Boolean).length < 4) {
+      play("uncheck");
+      floatText("Chưa đủ 4/4 tiêu chí kỷ luật! Hãy hoàn thành Checklist trước khi vào lệnh!", W / 2, 140, RED);
+      G.modalTab = 3;
+      return;
+    }
+    G.days[idx] = true;
+    G.dayTimestamps[idx] = Math.floor(Date.now() / 1000);
+    G.coins += val;
+    G.capital = G.coins;
+    play("check");
+    if (!G.daysRew[idx]) { G.daysRew[idx] = true; give(50); }
+    const sign = val >= 0 ? "+" : "";
+    floatText(`${sign}$${val.toLocaleString("en-US")}`, x, y, val >= 0 ? GREEN : RED);
+    burst(x, y, GREEN, 10);
+    checkMarginCall();
+  }
+  recalc();
+  syncInputWithNextDay();
+  save();
+}
+
+function showTimeInfo() {
+  const info = getSystemEnergy().label;
+  play("buff");
+  floatText("Đồng bộ giờ máy: " + info, W / 2, 120, CYAN);
+  burst(W / 2, 120, CYAN, 18);
+}
+
+function bankAmount() {
+  const v = parseInt(String(G.bankInputText).replace(/,/g, "").trim(), 10);
+  return isNaN(v) || v < 0 ? 0 : v;
+}
+
+function executeConversion() {
+  const amt = bankAmount();
+  if (amt <= 0) {
+    play("uncheck");
+    floatText("Vui lòng nhập số lượng lớn hơn 0!", W / 2, 350, RED);
+    return;
+  }
+  if (G.convFrom === G.convTo) {
+    play("uncheck");
+    floatText("Loại tiền nguồn và đích phải khác nhau!", W / 2, 350, RED);
+    return;
+  }
+  const fromName = CURRENCY_NAMES[G.convFrom];
+  const toName = CURRENCY_NAMES[G.convTo];
+
+  // Kiểm tra số dư nguồn
+  if (G.convFrom === 0) {
+    if (G.coins < amt) {
+      play("uncheck");
+      floatText(`Không đủ Xu Vàng! Có ${G.coins.toLocaleString("en-US")} Vàng, cần ${amt.toLocaleString("en-US")} Vàng`, W / 2, 350, RED);
+      return;
+    }
+  } else if (G.convFrom === 1) {
+    if (G.gems < amt) {
+      play("uncheck");
+      floatText(`Không đủ Kim Cương! Có ${G.gems.toLocaleString("en-US")} KC, cần ${amt.toLocaleString("en-US")} KC`, W / 2, 350, RED);
+      return;
+    }
+  } else if (G.convFrom === 2) {
+    if (G.withdrawnGems < amt) {
+      play("uncheck");
+      floatText(`Không đủ số dư khả dụng trong Bank! Có $${G.withdrawnGems.toLocaleString("en-US")}, cần $${amt.toLocaleString("en-US")}`, W / 2, 350, RED);
+      return;
+    }
+  }
+
+  // Trừ nguồn
+  if (G.convFrom === 0) {
+    G.coins -= amt;
+    G.peakCapital = Math.max(START_CAPITAL, G.coins);
+  } else if (G.convFrom === 1) {
+    G.gems -= amt;
+  } else if (G.convFrom === 2) {
+    G.withdrawnGems -= amt;
+  }
+
+  // Cộng đích
+  if (G.convTo === 0) G.coins += amt;
+  else if (G.convTo === 1) G.gems += amt;
+  else if (G.convTo === 2) G.withdrawnGems += amt;
+
+  recalc();
+  const vnd = amt * VND_RATE;
+  play("coin");
+  floatText(`Đã chuyển ${amt.toLocaleString("en-US")} ${fromName} -> ${toName} (~ ${vnd.toLocaleString("en-US")} VNĐ)!`, W / 2, 350, GREEN);
+  burst(W / 2, 350, G.convTo !== 0 ? GREEN : GOLD, 25);
+  save();
+  checkMarginCall();
+}
+
+function transferToBank() {
+  G.convFrom = 0; G.convTo = 2;
+  executeConversion();
+}
+
+function transferToCoins() {
+  G.convFrom = 2; G.convTo = 0;
+  executeConversion();
+}
+
+function traderTitle() {
+  const done = doneDays();
+  if (done < 15) return "Trader Tập Sự Kỷ Luật";
+  if (done < 60) return "Chiến Binh Kiên Định";
+  if (done < 180) return "Thợ Săn Xu Hướng";
+  if (done < 400) return "Bậc Thầy Quản Trị Rủi Ro";
+  if (done < 800) return "Chuyên Gia Sóng HaloDae";
+  return "Huyền Thoại Triệu Đô HaloDae";
+}
+
+function toggleChecklist(i, p = null) {
+  G.checklist[i] = !G.checklist[i];
+  play(G.checklist[i] ? "check" : "uncheck");
+  if (G.checklist[i] && p) {
+    burst(p.x, p.y, GREEN, 12);
+  }
+  if (G.checklist.every(Boolean)) {
+    play("buff");
+    floatText("ĐẠT 4/4 TIÊU CHÍ KỶ LUẬT! SẴN SÀNG TRADE!", W / 2, 140, GREEN);
+    burst(W / 2, 140, GREEN, 25);
+  }
+  save();
+}
+
+function calcStats() {
+  const logged = [];
+  for (let i = 0; i < 1000; i++) {
+    if (G.days[i]) logged.push({ day: i + 1, pnl: G.dayProfits[i] });
+  }
+  if (!logged.length) {
+    return {
+      totalTrades: 0, winDays: 0, lossDays: 0,
+      winRate: 0, totalProfit: 0, totalLoss: 0, profitFactor: 0,
+      maxDrawdownPct: 0, maxDrawdownDollar: 0,
+      maxWinStreak: 0, maxLossStreak: 0,
+      bestDay: 0, worstDay: 0, avgWin: 0, avgLoss: 0,
+      equityPoints: [{ day: 0, eq: START_CAPITAL }]
+    };
+  }
+
+  const totalTrades = logged.length;
+  let winDays = 0, lossDays = 0, totalProfit = 0, totalLoss = 0;
+  let bestDay = logged[0].pnl, worstDay = logged[0].pnl;
+  logged.forEach(x => {
+    if (x.pnl > 0) { winDays++; totalProfit += x.pnl; }
+    else if (x.pnl < 0) { lossDays++; totalLoss += Math.abs(x.pnl); }
+    if (x.pnl > bestDay) bestDay = x.pnl;
+    if (x.pnl < worstDay) worstDay = x.pnl;
+  });
+
+  const winRate = totalTrades ? (winDays / totalTrades * 100) : 0;
+  const profitFactor = totalLoss ? (totalProfit / totalLoss) : (totalProfit ? 99.9 : 0);
+
+  let equity = START_CAPITAL, peak = START_CAPITAL;
+  let maxDdDollar = 0, maxDdPct = 0;
+  const equityPoints = [{ day: 0, eq: START_CAPITAL }];
+  let curWin = 0, maxWin = 0, curLoss = 0, maxLoss = 0;
+
+  logged.forEach(x => {
+    equity += x.pnl;
+    equityPoints.push({ day: x.day, eq: equity });
+    if (equity > peak) peak = equity;
+    const dd = peak - equity;
+    if (dd > maxDdDollar) maxDdDollar = dd;
+    if (peak > 0) {
+      const ddPct = (dd / peak) * 100;
+      if (ddPct > maxDdPct) maxDdPct = ddPct;
+    }
+    if (x.pnl > 0) { curWin++; curLoss = 0; if (curWin > maxWin) maxWin = curWin; }
+    else if (x.pnl < 0) { curLoss++; curWin = 0; if (curLoss > maxLoss) maxLoss = curLoss; }
+    else { curWin = 0; curLoss = 0; }
+  });
+
+  const avgWin = winDays ? Math.round(totalProfit / winDays) : 0;
+  const avgLoss = lossDays ? Math.round(totalLoss / lossDays) : 0;
+
+  return {
+    totalTrades, winDays, lossDays, winRate,
+    totalProfit, totalLoss, profitFactor,
+    maxDrawdownPct: maxDdPct, maxDrawdownDollar: maxDdDollar,
+    maxWinStreak: maxWin, maxLossStreak: maxLoss,
+    bestDay, worstDay, avgWin, avgLoss,
+    equityPoints
+  };
+}
+
+function exportCsv() {
+  let csv = "\uFEFFNgày,Mục tiêu kế hoạch ($),Lợi nhuận thực tế ($),Vốn tích lũy ($),Trạng thái\n";
+  let runningCap = START_CAPITAL;
+  for (let i = 0; i < 1000; i++) {
+    const pnl = G.dayProfits[i];
+    const status = G.days[i] ? "ĐÃ GIAO DỊCH" : "Chưa thực hiện";
+    if (G.days[i]) runningCap += pnl;
+    csv += `${i + 1},${defaultTargetForDay(i + 1)},${G.days[i] ? pnl : 0},${runningCap},${status}\n`;
+  }
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "halodae_trading_journal.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+  play("coin");
+  floatText("Đã xuất file halodae_trading_journal.csv!", W / 2, 350, GREEN);
+  burst(W / 2, 350, GREEN, 20);
+}
+
+function exportBackupJson() {
+  const o = { version: 4 };
+  KEYS.forEach(k => o[k] = G[k]);
+  const blob = new Blob([JSON.stringify(o, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "halodae_backup.json";
+  a.click();
+  URL.revokeObjectURL(url);
+  play("coin");
+  floatText("Đã sao lưu file halodae_backup.json!", W / 2, 350, CYAN);
+  burst(W / 2, 350, CYAN, 20);
+}
+
+function importBackupJson() {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".json";
+  inp.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const o = JSON.parse(ev.target.result);
+        if (!o || (o.version !== 3 && o.version !== 4)) {
+          play("uncheck");
+          floatText("File sao lưu không hợp lệ!", W / 2, 350, RED);
+          return;
+        }
+        KEYS.forEach(k => {
+          const val = getBackupVal(o, k);
+          if (val === undefined) return;
+          if (Array.isArray(G[k])) {
+            if (Array.isArray(val) && val.length === G[k].length) {
+              if (k === "dayProfits" || k === "dayTimestamps") G[k] = val.map(Number);
+              else G[k] = val.map(Boolean);
+            }
+          } else if (typeof val === "number") G[k] = val;
+        });
+
+        for (let i = 0; i < 1000; i++) {
+          if (G.days[i] && (!G.dayTimestamps[i] || G.dayTimestamps[i] <= 0)) {
+            G.dayTimestamps[i] = 1;
+          }
+        }
+
+        if (o.version === 3) {
+          let totalPnl = 0;
+          G.days.forEach((d, i) => { if (d) totalPnl += G.dayProfits[i]; });
+          G.coins = Math.max(1000, START_CAPITAL + totalPnl);
+          G.gems = Math.max(1000, G.gems);
+        }
+
+        G.capital = G.coins;
+        recalc();
+        checkMarginCall();
+        V.cap = G.capital; V.xp = G.xp;
+        save();
+        play("level");
+        floatText("ĐÃ KHÔI PHỤC DỮ LIỆU TỪ BẢN SAO LƯU!", W / 2, 350, GOLD);
+        burst(W / 2, 350, GOLD, 30);
+      } catch (err) {
+        play("uncheck");
+        floatText("Lỗi đọc file sao lưu!", W / 2, 350, RED);
+      }
+    };
+    r.readAsText(file);
+  };
+  inp.click();
+}
+
+function resetData() {
+  if (!G.confirmReset) {
+    G.confirmReset = true;
+    play("uncheck");
+    floatText("BẤM LẦN NỮA ĐỂ XÁC NHẬN ĐẶT LẠI VỀ 0!", W / 2, 350, RED);
+    return;
+  }
+  G.confirmReset = false;
+  G.level = 1; G.xp = 0;
+  G.coins = 1000; G.gems = 1000; G.withdrawnGems = 0;
+  G.days = Array(1000).fill(false);
+  G.dayProfits = Array(1000).fill(0).map((_, i) => defaultTargetForDay(i + 1));
+  G.daysRew = Array(1000).fill(false);
+  G.dayTimestamps = Array(1000).fill(0);
+  G.rules = Array(4).fill(false); G.rulesRew = Array(4).fill(false);
+  G.bosses = Array(3).fill(false); G.bossesRew = Array(3).fill(false);
+  G.disc = Array(4).fill(false); G.discRew = Array(4).fill(false);
+  G.bonus = Array(5).fill(false); G.claimed = Array(10).fill(false);
+  G.checklist = Array(4).fill(false);
+  G.capital = 1000;
+  G.peakCapital = 1000;
+  V.cap = 1000; V.xp = 0;
+  G.marginCallOpen = false;
+  save();
+  play("buff");
+  floatText("ĐÃ ĐẶT LẠI TOÀN BỘ TIẾN TRÌNH VỀ 0!", W / 2, 350, GOLD);
+  burst(W / 2, 350, GOLD, 30);
+}
+
+function toggleRule(i, x, y) {
+  G.rules[i] = !G.rules[i];
+  if (G.rules[i]) {
+    play("coin");
+    if (!G.rulesRew[i]) { G.rulesRew[i] = true; give(150); }
+    floatText("Đạt quy tắc! +150 XP", x, y, GREEN);
+    burst(x, y, GREEN, 14);
+  } else play("uncheck");
+  save();
+}
+
+function toggleBoss(i, x, y) {
+  G.bosses[i] = !G.bosses[i];
+  const b = BOSSES[i];
+  if (G.bosses[i]) {
+    play("coin");
+    if (!G.bossesRew[i]) { G.bossesRew[i] = true; give(b[1]); }
+    floatText(`Hạ ${b[0]}! +${b[1].toLocaleString("en-US")} XP`, x, y, RED);
+    burst(x, y, RED, 20);
+  } else play("uncheck");
+  save();
+}
+
+function toggleDiscipline(i, x, y) {
+  G.disc[i] = !G.disc[i];
+  if (G.disc[i]) {
+    play("coin");
+    if (!G.discRew[i]) { G.discRew[i] = true; give(80); }
+    floatText(`${DISCIPLINE[i]}! +80 XP`, x, y, CYAN);
+    burst(x, y, CYAN, 12);
+  } else play("uncheck");
+  save();
+}
+
+function claimMilestone(i, x, y) {
+  const [name, , target, , xp] = MILESTONES[i];
+  if (G.claimed[i]) { floatText("Đã nhận thưởng mốc này", x, y, MUTED); return; }
+  if (G.capital < target) { play("uncheck"); floatText("Vốn thật cần thêm $" + (target - G.capital).toLocaleString("en-US"), x, y, RED); return; }
+  G.claimed[i] = true; play("coin");
+  give(xp);
+  floatText("ĐẠT " + name.split(":")[0].toUpperCase() + "! +" + xp.toLocaleString("en-US") + " XP", x, y, GOLD);
+  burst(x, y, GOLD, 26); save();
+}
+
+function toggleBonus(i) {
+  G.bonus[i] = !G.bonus[i]; play("buff");
+  const r = bonusRect(i);
+  floatText(BONUS[i][0] + ": " + (G.bonus[i] ? "BẬT" : "TẮT"), r.cx, r.y, CYAN);
+  burst(r.cx, r.cy, CYAN, 14); save();
+}
+function setPage(p) { const n = Math.max(0, Math.min(PAGE_COUNT - 1, p)); if (n !== G.page) { G.page = n; play("check"); } }
+
+/* ---------- xử lý click ---------- */
+function click(p) {
+  if (G.marginCallOpen) {
+    if (hit(BTN_MARGIN_ACTION, p)) {
+      burstRipple(p.x, p.y, GOLD, 32);
+      recoverMarginCall();
+    }
+    return;
+  }
+
+  if (G.modal) {
+    if (hit(M_CLOSE, p)) { burstRipple(p.x, p.y, RED, 26); G.modal = false; return; }
+    if (hit(TAB_DAILY_BTN, p)) { burstRipple(p.x, p.y, GREEN, 26); G.modalTab = 0; play("check"); return; }
+    if (hit(TAB_POCKET_BTN, p)) { burstRipple(p.x, p.y, CYAN, 26); G.modalTab = 1; play("check"); return; }
+    if (hit(TAB_STATS_BTN, p)) { burstRipple(p.x, p.y, GOLD, 26); G.modalTab = 2; play("check"); return; }
+    if (hit(TAB_BACKUP_BTN, p)) { burstRipple(p.x, p.y, "#b46eff", 26); G.modalTab = 3; play("check"); return; }
+    if (hit(BTN_TIME_INFO, p)) { burstRipple(p.x, p.y, CYAN, 26); showTimeInfo(); return; }
+
+    if (G.modalTab === 0) {
+      if (hit(INPUT_BOX_RECT, p)) {
+        burstRipple(p.x, p.y, GOLD, 22);
+        const val = prompt("Nhập số tiền kiếm được hôm nay ($):", G.inputText);
+        if (val !== null) G.inputText = val;
+        return;
+      }
+      if (hit(BTN_SUBMIT_TODAY, p)) {
+        if (G.checklist.filter(Boolean).length < 4) {
+          burstRipple(p.x, p.y, RED, 28);
+          play("uncheck");
+          floatText("Chưa đủ 4/4 tiêu chí kỷ luật! Hãy hoàn thành Checklist trước khi vào lệnh!", W / 2, 140, RED);
+          G.modalTab = 3;
+          return;
+        }
+        burstRipple(p.x, p.y, GREEN, 32);
+        submitToday();
+        return;
+      }
+      if (hit(BTN_Q_M50, p)) { burstRipple(p.x, p.y, RED, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) - 50); return; }
+      if (hit(BTN_Q_P50, p)) { burstRipple(p.x, p.y, CYAN, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) + 50); return; }
+      if (hit(BTN_Q_P100, p)) { burstRipple(p.x, p.y, GREEN, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) + 100); return; }
+      if (hit(BTN_Q_P250, p)) { burstRipple(p.x, p.y, GOLD, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) + 250); return; }
+      if (hit(M_PREV, p)) { burstRipple(p.x, p.y, CYAN, 22); setPage(G.page - 1); return; }
+      if (hit(M_NEXT, p)) { burstRipple(p.x, p.y, CYAN, 22); setPage(G.page + 1); return; }
+
+      for (let k = 0; k < PAGE_SIZE; k++) {
+        const r = dayCell(k), idx = G.page * PAGE_SIZE + k;
+        if (idx < 1000 && hit(r, p)) { burstRipple(p.x, p.y, GREEN, 22); toggleDay(idx, r.x + 14, r.cy); return; }
+      }
+    } else if (G.modalTab === 1) {
+      // Chọn loại tiền "Từ"
+      if (hit(BTN_CONV_FROM_0, p)) {
+        burstRipple(p.x, p.y, GOLD, 20);
+        G.convFrom = 0;
+        if (G.convTo === 0) G.convTo = 2;
+        return;
+      } else if (hit(BTN_CONV_FROM_1, p)) {
+        burstRipple(p.x, p.y, CYAN, 20);
+        G.convFrom = 1;
+        if (G.convTo === 1) G.convTo = 0;
+        return;
+      } else if (hit(BTN_CONV_FROM_2, p)) {
+        burstRipple(p.x, p.y, GREEN, 20);
+        G.convFrom = 2;
+        if (G.convTo === 2) G.convTo = 0;
+        return;
+      } else if (hit(BTN_CONV_SWAP, p)) {
+        burstRipple(p.x, p.y, PURPLE, 20);
+        const tmp = G.convFrom;
+        G.convFrom = G.convTo;
+        G.convTo = tmp;
+        return;
+      }
+      // Chọn loại tiền "Sang"
+      else if (hit(BTN_CONV_TO_0, p)) {
+        burstRipple(p.x, p.y, GOLD, 20);
+        G.convTo = 0;
+        if (G.convFrom === 0) G.convFrom = 2;
+        return;
+      } else if (hit(BTN_CONV_TO_1, p)) {
+        burstRipple(p.x, p.y, CYAN, 20);
+        G.convTo = 1;
+        if (G.convFrom === 1) G.convFrom = 0;
+        return;
+      } else if (hit(BTN_CONV_TO_2, p)) {
+        burstRipple(p.x, p.y, GREEN, 20);
+        G.convTo = 2;
+        if (G.convFrom === 2) G.convFrom = 0;
+        return;
+      }
+
+      if (hit(BANK_INP_RECT, p)) {
+        burstRipple(p.x, p.y, CYAN, 22);
+        const val = prompt("Nhập số lượng muốn quy đổi (1 Vàng = 1 KC = $1 Bank = 26,000 VNĐ):", G.bankInputText);
+        if (val !== null) G.bankInputText = val.replace(/[^0-9]/g, "");
+      } else if (hit(BTN_B_10, p)) { burstRipple(p.x, p.y, CYAN, 20); G.bankInputText = "10"; play("check"); }
+      else if (hit(BTN_B_50, p)) { burstRipple(p.x, p.y, CYAN, 20); G.bankInputText = "50"; play("check"); }
+      else if (hit(BTN_B_100, p)) { burstRipple(p.x, p.y, GREEN, 20); G.bankInputText = "100"; play("check"); }
+      else if (hit(BTN_B_500, p)) { burstRipple(p.x, p.y, GREEN, 20); G.bankInputText = "500"; play("check"); }
+      else if (hit(BTN_B_ALL, p)) {
+        burstRipple(p.x, p.y, GOLD, 22);
+        if (G.convFrom === 0) G.bankInputText = String(Math.max(0, G.coins));
+        else if (G.convFrom === 1) G.bankInputText = String(Math.max(0, G.gems));
+        else G.bankInputText = String(Math.max(0, G.withdrawnGems));
+        play("check");
+      }
+      else if (hit(BTN_B_CLR, p)) { burstRipple(p.x, p.y, RED, 20); G.bankInputText = "0"; play("check"); }
+      else if (hit(BTN_EXECUTE_CONV, p)) { burstRipple(p.x, p.y, CYAN, 30); executeConversion(); }
+    } else if (G.modalTab === 3) {
+      for (let i = 0; i < 4; i++) {
+        if (hit(CHK_ROWS[i], p)) { burstRipple(p.x, p.y, GREEN, 24); toggleChecklist(i, p); return; }
+      }
+      if (hit(BTN_EXPORT_CSV, p)) { burstRipple(p.x, p.y, GREEN, 28); exportCsv(); }
+      else if (hit(BTN_EXPORT_JSON, p)) { burstRipple(p.x, p.y, CYAN, 28); exportBackupJson(); }
+      else if (hit(BTN_IMPORT_JSON, p)) { burstRipple(p.x, p.y, "#b482ff", 28); importBackupJson(); }
+      else if (hit(BTN_RESET_DATA, p)) { burstRipple(p.x, p.y, RED, 28); resetData(); }
+    }
+    return;
+  }
+
+  if (hit(RES, p)) { burstRipple(p.x, p.y, CYAN, 26); showTimeInfo(); return; }
+  if (hit(DAILY, p)) { burstRipple(p.x, p.y, GREEN, 28); play("check"); G.modal = true; syncInputWithNextDay(); return; }
+  if (hit(AVATAR, p)) { burstRipple(p.x, p.y, GOLD, 28); floatText("Trader HaloDae - " + traderTitle(), AVATAR.cx, AVATAR.y, GOLD); return; }
+  for (let i = 0; i < 10; i++) if (hit(mileRow(i), p) || hit(nodeRect(i), p)) { burstRipple(p.x, p.y, GOLD, 28); claimMilestone(i, p.x, p.y); return; }
+  for (let i = 0; i < 4; i++) if (hit(ruleRow(i), p)) { burstRipple(p.x, p.y, GREEN, 24); toggleRule(i, p.x, p.y); return; }
+  for (let i = 0; i < 3; i++) if (hit(bossRow(i), p)) { burstRipple(p.x, p.y, RED, 28); toggleBoss(i, p.x, p.y); return; }
+  for (let i = 0; i < 4; i++) if (hit(discRow(i), p)) { burstRipple(p.x, p.y, CYAN, 26); toggleDiscipline(i, p.x, p.y); return; }
+  for (let i = 0; i < 5; i++) if (hit(bonusRect(i), p)) { burstRipple(p.x, p.y, CYAN, 26); toggleBonus(i); return; }
+}
+
+function interactive(p) {
+  if (G.marginCallOpen) return hit(BTN_MARGIN_ACTION, p);
+  if (G.modal) {
+    if (hit(M_CLOSE, p) || hit(TAB_DAILY_BTN, p) || hit(TAB_POCKET_BTN, p) || hit(TAB_STATS_BTN, p) || hit(TAB_BACKUP_BTN, p) || hit(BTN_TIME_INFO, p)) return true;
+    if (G.modalTab === 0) {
+      return [INPUT_BOX_RECT, BTN_SUBMIT_TODAY, BTN_Q_M50, BTN_Q_P50, BTN_Q_P100, BTN_Q_P250, M_PREV, M_NEXT].some(r => hit(r, p)) ||
+        Array.from({ length: PAGE_SIZE }, (_, k) => dayCell(k)).some(r => hit(r, p));
+    } else if (G.modalTab === 1) {
+      return [BTN_CONV_FROM_0, BTN_CONV_FROM_1, BTN_CONV_FROM_2, BTN_CONV_SWAP,
+              BTN_CONV_TO_0, BTN_CONV_TO_1, BTN_CONV_TO_2,
+              BANK_INP_RECT, BTN_B_10, BTN_B_50, BTN_B_100, BTN_B_500, BTN_B_ALL, BTN_B_CLR,
+              BTN_EXECUTE_CONV].some(r => hit(r, p));
+    } else if (G.modalTab === 3) {
+      return [...CHK_ROWS, BTN_EXPORT_CSV, BTN_EXPORT_JSON, BTN_IMPORT_JSON, BTN_RESET_DATA].some(r => hit(r, p));
+    }
+    return false;
+  }
+  if (hit(DAILY, p) || hit(AVATAR, p) || hit(RES, p)) return true;
+  for (let i = 0; i < 10; i++) if (hit(mileRow(i), p) || hit(nodeRect(i), p)) return true;
+  for (let i = 0; i < 4; i++) if (hit(ruleRow(i), p) || hit(discRow(i), p)) return true;
+  for (let i = 0; i < 3; i++) if (hit(bossRow(i), p)) return true;
+  for (let i = 0; i < 5; i++) if (hit(bonusRect(i), p)) return true;
+  return false;
+}
+
+function tooltip(p) {
+  if (G.modal) return null;
+  const f = n => n.toLocaleString("en-US");
+  if (hit(RES, p)) return "Năng lượng: " + getSystemEnergy().label + " (tự động theo giờ máy: T2-T6)";
+  if (hit(DAILY, p)) return "Bấm để mở nhật ký 1000 ngày & Rút tiền về túi";
+  for (let i = 0; i < 10; i++) if (hit(mileRow(i), p) || hit(nodeRect(i), p)) {
+    const m = MILESTONES[i];
+    const st = G.claimed[i] ? "Đã nhận thưởng" : G.capital >= m[2] ? "Đạt mốc vốn! Bấm nhận thưởng" : "Vốn thật cần thêm $" + f(m[2] - G.capital);
+    return m[0] + " - " + st;
+  }
+  for (let i = 0; i < 4; i++) if (hit(ruleRow(i), p)) return "Quy tắc HaloDae: " + RULES[i] + " (+150 XP)";
+  for (let i = 0; i < 3; i++) if (hit(bossRow(i), p)) return "Hạ " + BOSSES[i][0] + ": +" + BOSSES[i][1].toLocaleString("en-US") + " XP";
+  for (let i = 0; i < 4; i++) if (hit(discRow(i), p)) return DISCIPLINE[i] + ": Giữ vững kỷ luật (+80 XP)";
+  for (let i = 0; i < 5; i++) if (hit(bonusRect(i), p)) return BONUS[i][0] + ": " + BONUS[i][1] + " (" + (G.bonus[i] ? "đang BẬT" : "đang TẮT") + ")";
+  return null;
+}
+
+/* ---------- vẽ ---------- */
+const FONT = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
+const setFont = (size, bold = true) => { ctx.font = (bold ? "bold " : "") + size + "px " + FONT; };
+function fitSize(text, maxW, size, bold = true, min = 8) {
+  let s = size;
+  while (s > min) { setFont(s, bold); if (ctx.measureText(text).width <= maxW) return s; s--; }
+  return min;
+}
+function text(t, size, color, x, cy, align = "l", bold = true, shadow = true) {
+  setFont(size, bold); ctx.textBaseline = "middle"; ctx.textAlign = align === "c" ? "center" : align === "r" ? "right" : "left";
+  if (shadow) { ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillText(t, x + 1, cy + 1); }
+  ctx.fillStyle = color; ctx.fillText(t, x, cy);
+  return ctx.measureText(t).width;
+}
+function rrect(r, radius, fill, stroke, lw = 1) {
+  ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, radius);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+}
+const strokeBox = (r, radius, color, lw) => rrect(R(r.x + lw / 2, r.y + lw / 2, r.w - lw, r.h - lw), radius, null, color, lw);
+function line(x1, y1, x2, y2, color, lw) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke(); }
+function compact(n, maxLen) {
+  const s = n.toLocaleString("en-US");
+  if (s.length <= maxLen) return s;
+  return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n / 1000).toFixed(1) + "k";
+}
+function checkbox(r, checked, hover, color, pulse = 0) {
+  rrect(r, 3, "#0a0814");
+  let border;
+  if (checked) {
+    border = color;
+    drawGlowRect(r, color, 0.15, 3, 2);
+  } else if (pulse > 0) {
+    border = `rgb(255,${170 + 70 * pulse | 0},${40 + 60 * pulse | 0})`;
+    drawGlowRect(r, border, 0.12 + 0.12 * pulse, 3, 3);
+  } else {
+    border = hover ? "#96b4dc" : "#5f6987";
+  }
+  strokeBox(r, 3, border, (checked || pulse > 0) ? 2 : 1);
+  if (checked) {
+    const p = 3;
+    line(r.x + p, r.y + p, r.right - p - 1, r.bottom - p - 1, color, 2);
+    line(r.x + p, r.bottom - p - 1, r.right - p - 1, r.y + p, color, 2);
+  }
+}
+function bar(r, ratio, fill, back, border, anim = 0) {
+  rrect(r, 4, back);
+  ratio = Math.max(0, Math.min(1, ratio));
+  const w = Math.floor(r.w * ratio);
+  if (w > 0) {
+    const fillW = Math.min(r.w, Math.max(w, 4));
+    rrect(R(r.x, r.y, fillW, r.h), 4, fill);
+
+    // Vệt bóng sáng phía trên (Bevel highlight)
+    const topH = Math.max(2, Math.floor(r.h / 2) - 1);
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.beginPath();
+    ctx.roundRect(r.x, r.y, fillW, topH, [4, 4, 0, 0]);
+    ctx.fill();
+
+    // Luồng quét ánh sáng chuyển động (Scanning light sweep)
+    if (anim > 0) {
+      const swW = 22;
+      const sweepX = r.x + Math.floor(((anim * 65) % (r.w + 70)) - 35);
+      const clipL = Math.max(r.x, sweepX);
+      const clipR = Math.min(r.x + fillW, sweepX + swW);
+      if (clipR > clipL) {
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.fillRect(clipL, r.y, clipR - clipL, r.h);
+      }
+
+      // Đầu dẫn phát sáng (Glowing leading tip)
+      if (fillW < r.w) {
+        const tipX = r.x + fillW;
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.fillRect(tipX - 3, r.y - 1, 6, r.h + 2);
+      }
+    }
+  }
+  strokeBox(r, 4, border, 1);
+}
+function button(r, label, color, size = 12) {
+  const hover = hit(r, mouse);
+  if (hover) {
+    drawGlowRect(r, color, 0.16, 6, 3);
+  }
+  ctx.save();
+  rrect(r, 6, color);
+  ctx.fillStyle = hover ? "rgba(0,0,0,.58)" : "rgba(0,0,0,.72)";
+  ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 6); ctx.fill();
+  if (hover) {
+    const topH = Math.max(2, Math.floor(r.h / 2));
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(r.x, r.y, r.w, topH);
+  }
+  ctx.restore();
+  strokeBox(r, 6, hover ? "#ffffff" : color, hover ? 2 : 1);
+  text(label, fitSize(label, r.w - 10, size), WHITE, r.cx, r.cy, "c", true, false);
+}
+function tint(r, color, alpha, radius = 4) { ctx.fillStyle = `rgba(${color},${alpha / 255})`; ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, radius); ctx.fill(); }
+
+function drawResources() {
+  text(compact(G.coins, 7), 16, WHITE, 814, 73);
+  text(compact(G.gems, 5), 16, WHITE, 907, 73);
+  const e = G.energy;
+  text(e + "/5", 16, e > 0 ? GOLD : MUTED, 979, 73);
+
+  // Vòng hào quang thở nhẹ trên các icon tài nguyên
+  const pCoin = (Math.sin(V.anim * 2.4) + 1.0) / 2.0;
+  const pGem = (Math.sin(V.anim * 2.4 + 1.5) + 1.0) / 2.0;
+  const pElec = (Math.sin(V.anim * 6.5) + 1.0) / 2.0;
+
+  // 1. Hào quang & sao xoay trên đồng Xu (780, 70)
+  drawGlowCircle(780, 70, 11, GOLD, 0.06 + 0.08 * pCoin, 3);
+  drawSparkleStar(780, 70, 4.2 + 1.2 * pCoin, GOLD, 0.82, V.anim * 1.5);
+
+  // 2. Hào quang & sao xoay trên Kim Cương (872, 70)
+  drawGlowCircle(872, 70, 11, CYAN, 0.06 + 0.08 * pGem, 3);
+  drawSparkleStar(872, 70, 4.2 + 1.2 * pGem, CYAN, 0.82, V.anim * 1.5 + Math.PI / 4);
+
+  // 3. Sấm sét năng lượng & tia plasma giật điện (946, 72)
+  if (e > 0) {
+    drawGlowCircle(946, 72, 10, "#ffe650", 0.08 + 0.12 * pElec, 3);
+    if (Math.floor(V.anim * 15) % 3 === 0) {
+      drawElectricCrackle(946, 72, 12, "#fff078");
+    }
+  }
+}
+function drawCharacter() {
+  // Hào quang thở quanh ảnh đại diện tiêu đề (38, 38)
+  const headP = (Math.sin(V.anim * 2.2) + 1.0) / 2.0;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,204,0,${(0.1 + 0.14 * headP).toFixed(3)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(38, 38, 24, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Hào quang thở quanh Avatar nhân vật (AVATAR)
+  const pulse = (Math.sin(V.anim * 2.8) + 1.0) / 2.0;
+  const auraCol = G.capital >= 10000 ? CYAN : GOLD;
+  drawGlowRect(AVATAR, auraCol, 0.1 + 0.12 * pulse, 8, 4);
+
+  // Tia sáng quét góc avatar với sao xoay liên tục
+  drawSparkleStar(AVATAR.right - 2, AVATAR.y + 2, 4.5, GOLD, 0.9, V.anim * 2.0);
+
+  text("HaloDae [Lv." + G.level + "]", 15, "#f5af73", 125, 62);
+  text(traderTitle(), 10, CYAN, 125, 75, "l", false);
+  text("SỨC CHỊU ĐỰNG (HP)", 10, TEXT_LIGHT, 125, 87, "l", false);
+  const hp = R(124, 96, 154, 9);
+  const ratio = hpRatio();
+  let hpFill = "#c81928", hpGlow = "#781e2d";
+  if (ratio < 0.25) {
+    const isFlash = Math.floor(V.anim * 6) % 2 === 0;
+    hpFill = isFlash ? "#f52832" : "#a0141e";
+    hpGlow = isFlash ? "#b4141e" : "#500a0f";
+  } else if (ratio < 0.5) {
+    hpFill = "#dc6e1e";
+    hpGlow = "#8c4614";
+  }
+  bar(hp, ratio, hpFill, "#3c0a14", hpGlow, V.anim);
+  const pct = Math.round(ratio * 100);
+  text(pct + "% (" + Math.floor(V.cap).toLocaleString("en-US") + "$)", 9, WHITE, hp.right - 4, hp.cy, "r");
+  text("KINH NGHIỆM (XP)", 10, TEXT_LIGHT, 125, 114, "l", false);
+  const xp = R(124, 123, 154, 9);
+  bar(xp, V.xp / maxXp(), "#9646f0", "#231437", "#503282", V.anim);
+  text(Math.floor(V.xp) + "/" + maxXp(), 9, WHITE, xp.cx, xp.cy, "c");
+  text("XP TIẾP THEO: " + Math.max(0, maxXp() - Math.floor(V.xp)) + " XP", 10, "#5a96ff", 125, 139, "l", false);
+}
+function drawDaily() {
+  const hv = hit(DAILY, mouse);
+  const pulse = (Math.sin(V.anim * 3.5) + 1.0) / 2.0;
+  if (hv) {
+    drawGlowRect(DAILY, GREEN, 0.16, 8, 4);
+    tint(inflate(DAILY, -4, -4), "46,213,115", 28, 6);
+  } else {
+    drawGlowRect(DAILY, GREEN, 0.05 + 0.06 * pulse, 8, 3);
+  }
+
+  text("NHẬT KÝ GIAO DỊCH HẰNG NGÀY", 12, "#6ecd78", DAILY.cx, 102, "c");
+  rrect(DAILY_BTN, 5, hv ? "#143424" : "#10281c");
+  const borderCol = hv ? `rgb(${46 + 60 * pulse | 0},${213 + 30 * pulse | 0},${115 + 50 * pulse | 0})` : `rgb(46,${180 + 50 * pulse | 0},115)`;
+  strokeBox(DAILY_BTN, 5, borderCol, hv ? 2 : 1);
+
+  // Mũi tên > dao động mượt mà
+  const arrowShift = Math.sin(V.anim * 4.5) * 2.5;
+  text("MỞ NHẬT KÝ & RÚT TIỀN", 12, GOLD, DAILY_BTN.cx - 8, DAILY_BTN.cy, "c", true, false);
+  text(">", 12, hv ? WHITE : GOLD, DAILY_BTN.cx + 78 + arrowShift, DAILY_BTN.cy, "c", true, false);
+
+  text("Đã xong: " + doneDays() + " / 1000 ngày", 11, WHITE, 826, 148, "l", true, false);
+  text("Vốn thật: $" + G.capital.toLocaleString("en-US") + " / $" + GOAL.toLocaleString("en-US"), 11, "#82e696", 826, 161, "l", true, false);
+  bar(R(824, 169, 184, 5), G.capital / GOAL, GREEN, "#0a1912", "#285a3c", V.anim);
+}
+function drawMilestones(pulse) {
+  MILESTONES.forEach(([name, suffix, target], i) => {
+    const r = mileRow(i), hv = hit(r, mouse), claimed = G.claimed[i], ready = !claimed && G.capital >= target;
+    if (hv) tint(r, "255,204,0", 30); else if (ready) tint(r, "255,204,0", 15 + 25 * pulse);
+    checkbox(R(25, r.cy - 6, 12, 12), claimed, hv, GOLD, ready ? pulse : 0);
+    const col = claimed ? GOLD : ready ? WHITE : "#cdc6c3";
+    const w = text(name, fitSize(name + " " + suffix, 180, 12), col, 43, r.cy);
+    if (suffix) text(suffix, 11, "#eba05a", 43 + w + 4, r.cy, "l", false);
+  });
+}
+function drawRules() {
+  RULES.forEach((name, i) => {
+    const r = ruleRow(i), hv = hit(r, mouse);
+    if (hv) tint(r, "90,230,110", 32);
+    checkbox(R(20, r.cy - 6, 12, 12), G.rules[i], hv, "#6eff82");
+    text(name, fitSize(name, 188, 12, false), G.rules[i] ? "#82ff91" : TEXT_LIGHT, 38, r.cy, "l", false, false);
+  });
+}
+function drawBosses() {
+  BOSSES.forEach(([name, gems], i) => {
+    const r = bossRow(i), hv = hit(r, mouse);
+    if (hv) tint(r, "255,71,87", 34);
+    checkbox(R(19, r.cy - 6, 12, 12), G.bosses[i], hv, "#ff5a6e");
+    text(name, 13, G.bosses[i] ? "#ff8291" : TEXT_LIGHT, 38, r.cy, "l", false, false);
+  });
+}
+function drawDiscipline() {
+  const pulse = (Math.sin(V.anim * 3.0) + 1.0) / 2.0;
+  for (let i = 0; i < 4; i++) {
+    const r = discRow(i), hv = hit(r, mouse), ri = inflate(r, -2, -2);
+    if (G.disc[i]) {
+      drawGlowRect(ri, CYAN, 0.09 + 0.08 * pulse, 6, 3);
+      tint(ri, "0,210,255", 34, 6);
+      strokeBox(ri, 6, CYAN, 1);
+    } else if (hv) {
+      tint(ri, "255,255,255", 22, 6);
+    }
+    checkbox(R(430, discNumCy(i) - 7, 14, 14), G.disc[i], hv, CYAN);
+  }
+}
+function drawBonus() {
+  const pulse = (Math.sin(V.anim * 3.2) + 1.0) / 2.0;
+  for (let i = 0; i < 5; i++) {
+    const r = bonusRect(i), hv = hit(r, mouse);
+    if (G.bonus[i]) {
+      drawGlowRect(r, CYAN, 0.1 + 0.1 * pulse, 6, 4);
+      tint(r, "0,210,255", 38, 6);
+      strokeBox(r, 6, CYAN, 2);
+      const b = R(r.right - 24, r.y + 3, 20, 12);
+      rrect(b, 4, "#04283a"); strokeBox(b, 4, CYAN, 1);
+      text("ON", 9, CYAN, b.cx, b.cy, "c", true, false);
+    } else if (hv) {
+      drawGlowRect(r, "#8c96dc", 0.1, 6, 3);
+      tint(r, "255,255,255", 24, 6);
+      strokeBox(r, 6, "#8c96dc", 1);
+    }
+  }
+}
+function drawMap(pulse) {
+  // Tìm mốc mục tiêu kế tiếp chưa đạt
+  let nextIdx = -1;
+  for (let i = 0; i < MILESTONES.length; i++) {
+    if (G.capital < MILESTONES[i][2]) { nextIdx = i; break; }
+  }
+
+  // 1. Vẽ các đường ống dẫn năng lượng (Conduit lines) nối giữa 10 mốc vốn
+  for (let i = 0; i < MAP_PATH.length - 1; i++) {
+    const [x1, y1] = MAP_PATH[i];
+    const [x2, y2] = MAP_PATH[i + 1];
+    const isCompleted = G.claimed[i + 1] || (G.capital >= MILESTONES[i + 1][2]);
+    const isActive = (!isCompleted) && (nextIdx === i + 1);
+
+    if (isCompleted) {
+      line(x1, y1, x2, y2, "#14502d", 4);
+      line(x1, y1, x2, y2, GREEN, 2);
+    } else if (isActive) {
+      const glowA = 0.14 + 0.16 * pulse;
+      ctx.save();
+      ctx.strokeStyle = toRgba(GOLD, glowA);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+      line(x1, y1, x2, y2, `rgb(255,${200 + 40 * pulse | 0},60)`, 2);
+    } else {
+      line(x1, y1, x2, y2, "#1e2a41", 1);
+    }
+  }
+
+  // 2. Luồng sáng sao băng & xung nhịp năng lượng (Comets & Pulses)
+  for (let i = 0; i < MAP_PATH.length - 1; i++) {
+    const [x1, y1] = MAP_PATH[i];
+    const [x2, y2] = MAP_PATH[i + 1];
+    const isCompleted = G.claimed[i + 1] || (G.capital >= MILESTONES[i + 1][2]);
+    const isActive = (!isCompleted) && (nextIdx === i + 1);
+
+    if (!isCompleted && !isActive) continue;
+
+    const cometCol = isCompleted ? "#64ffa0" : GOLD;
+    const speed = isCompleted ? 0.55 : 0.85;
+    const t = (V.anim * speed + i * 0.35) % 1.0;
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+
+    // Đầu sao băng
+    ctx.save();
+    ctx.fillStyle = toRgba(cometCol, 0.86);
+    ctx.beginPath();
+    ctx.arc(px, py, isCompleted ? 3 : 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.98)";
+    ctx.beginPath();
+    ctx.arc(px, py, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Đuôi sao băng phát sáng (chỉ vẽ khi t >= tr để tránh nhảy vòng về đầu đoạn)
+    for (const tr of [0.05, 0.10]) {
+      if (t >= tr) {
+        const tTr = t - tr;
+        const tx = x1 + (x2 - x1) * tTr;
+        const ty = y1 + (y2 - y1) * tTr;
+        const tailA = 0.55 * (1.0 - tr / 0.12);
+        ctx.fillStyle = toRgba(cometCol, tailA);
+        ctx.beginPath();
+        ctx.arc(tx, ty, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 3. Vòng tròn radar định vị mốc mục tiêu kế tiếp (Dual Active Goal Beacon)
+  if (nextIdx !== -1) {
+    const nr = nodeRect(nextIdx);
+    // Sóng 1 (Gold)
+    const bP1 = (V.anim * 1.8) % 1.0;
+    const bR1 = 12 + Math.round(14 * bP1);
+    const bA1 = 0.74 * (1.0 - bP1);
+    ctx.save();
+    ctx.strokeStyle = toRgba(GOLD, bA1);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(nr.cx, nr.cy, bR1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Sóng 2 (Cyan, lệch pha)
+    const bP2 = (V.anim * 1.8 + 0.5) % 1.0;
+    const bR2 = 12 + Math.round(14 * bP2);
+    const bA2 = 0.55 * (1.0 - bP2);
+    ctx.strokeStyle = toRgba(CYAN, bA2);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(nr.cx, nr.cy, bR2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 4. Vẽ 10 node mốc vốn với viền hào quang & huy hiệu hoàn thành
+  for (let i = 0; i < 10; i++) {
+    const r = nodeRect(i), hv = hit(r, mouse), ri = inflate(r, 2, 2);
+    const target = MILESTONES[i][2];
+    if (G.claimed[i]) {
+      drawGlowRect(ri, GREEN, 0.11, 5, 3);
+      strokeBox(ri, 5, GREEN, 2);
+      // Huy hiệu hoàn thành dấu tích xanh lá (checkmark ✓)
+      const cx = r.right - 2, cy = r.y + 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "#083c1e";
+      ctx.fill();
+      ctx.strokeStyle = GREEN;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, cy);
+      ctx.lineTo(cx - 1, cy + 3);
+      ctx.lineTo(cx + 4, cy - 3);
+      ctx.strokeStyle = GREEN;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (G.capital >= target) {
+      const claimP = (V.anim * 2.2) % 1.0;
+      const claimR = 14 + Math.round(14 * claimP);
+      const claimA = 0.82 * (1.0 - claimP);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,204,0,${claimA.toFixed(3)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(r.cx, r.cy, claimR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      strokeBox(ri, 5, `rgb(255,${190 + 50 * pulse | 0},60)`, 2);
+      drawSparkleStar(r.right - 2, r.y + 2, 4.0, GOLD, 0.94, V.anim * 2.0);
+    }
+    if (hv) {
+      drawGlowRect(ri, WHITE, 0.16, 5, 3);
+      strokeBox(ri, 5, WHITE, 1);
+    }
+  }
+}
+function drawTooltip(t) {
+  setFont(12, true);
+  const w = ctx.measureText(t).width + 14, h = 24;
+  let x = mouse.x + 14, y = mouse.y + 16;
+  x = Math.min(x, W - 4 - w); y = Math.min(y, H - 4 - h);
+  const b = R(x, y, w, h);
+  rrect(b, 6, "#0e0a1a"); strokeBox(b, 6, GOLD, 1);
+  text(t, 12, WHITE, x + 7, y + h / 2, "l", true, false);
+}
+function drawBanner() {
+  if (V.banner <= 0) return;
+  const a = Math.min(255, V.banner * 4) / 255, bw = 460, bh = 66, bx = W / 2 - bw / 2, by = 100;
+  const bRect = R(bx, by, bw, bh);
+  drawGlowRect(bRect, GOLD, 0.2 * a, 14, 6);
+  ctx.save(); ctx.globalAlpha = a;
+  rrect(bRect, 14, GOLD); strokeBox(bRect, 14, WHITE, 3);
+  text("LÊN CẤP " + G.level + "!", 22, "#281a00", W / 2, by + 22, "c", true, false);
+  text("Sức chịu đựng và kỷ luật HaloDae đã nâng tầm", 12, "#503800", W / 2, by + 48, "c", true, false);
+  drawSparkleStar(bx + 12, by + 12, 5.0, WHITE, a);
+  drawSparkleStar(bx + bw - 12, by + 12, 5.0, WHITE, a);
+  ctx.restore();
+}
+
+function drawMarginCallModal() {
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.84)";
+  ctx.fillRect(0, 0, W, H);
+
+  const pulse = (Math.sin(V.anim * 4) + 1) / 2;
+  const borderColor = `rgb(255,${Math.floor(60 + 50 * pulse)},60)`;
+  drawGlowRect(MARGIN_MODAL_RECT, borderColor, 0.16, 12, 6);
+  rrect(MARGIN_MODAL_RECT, 12, "#14101a");
+  strokeBox(MARGIN_MODAL_RECT, 12, borderColor, 2);
+
+  if (G.gems > 0) {
+    // LẦN CHÁY 1 (Vàng <= 0 và Kim Cương > 0)
+    text("TÀI KHOẢN VÀNG ĐÃ CHÁY VỀ $0!", 16, RED, MARGIN_MODAL_RECT.cx, MARGIN_MODAL_RECT.y + 34, "c", true, true);
+    text("Tài khoản giao dịch của bạn đã cạn kiệt Xu Vàng.", 12, WHITE, MARGIN_MODAL_RECT.cx, MARGIN_MODAL_RECT.y + 64, "c", false, false);
+
+    const infoBox = R(MARGIN_MODAL_RECT.x + 30, MARGIN_MODAL_RECT.y + 88, 500, 108);
+    rrect(infoBox, 8, "#182032");
+    strokeBox(infoBox, 8, CYAN, 1);
+    text("QUỸ DỰ PHÒNG CÁ NHÂN (KIM CƯƠNG HIỆN CÓ):", 11, MUTED, infoBox.cx, infoBox.y + 22, "c", false, false);
+    text(`${G.gems.toLocaleString("en-US")} Kim Cương  (~ ${(G.gems * VND_RATE).toLocaleString("en-US")} VNĐ)`, 18, CYAN, infoBox.cx, infoBox.y + 50, "c", true, false);
+    text("Hãy nạp quỹ dự phòng sang Vàng để tiếp tục kỷ luật trade!", 11, "#b4e6ff", infoBox.cx, infoBox.y + 80, "c", false, false);
+
+    const amtRec = Math.min(1000, G.gems);
+    const btnTxt = `Nạp ${amtRec.toLocaleString("en-US")} Kim Cương sang Vàng để tiếp tục trade`;
+    button(BTN_MARGIN_ACTION, btnTxt, GOLD, 12);
+  } else {
+    // LẦN CHÁY 2 (Vàng <= 0 và Kim Cương == 0)
+    text("CHẤP NHẬN RỦI RO - BÀI HỌC KINH DOANH CỦA TRADER", 13, GOLD, MARGIN_MODAL_RECT.cx, MARGIN_MODAL_RECT.y + 26, "c", true, true);
+
+    const msgBox = R(MARGIN_MODAL_RECT.x + 24, MARGIN_MODAL_RECT.y + 50, 512, 148);
+    rrect(msgBox, 8, "#241216");
+    strokeBox(msgBox, 8, "#dc3c3c", 1);
+
+    text("Hãy chấp nhận rủi ro vì đó là chi phí kinh doanh!", 12, "#ffe68c", msgBox.cx, msgBox.y + 20, "c", true, false);
+    text("Bạn được sinh ra để quản trị dòng tiền và chắc chắn sẽ thành công", 11, WHITE, msgBox.cx, msgBox.y + 46, "c", false, false);
+    text("trên con đường trở thành một Trader vĩ đại!", 11, WHITE, msgBox.cx, msgBox.y + 68, "c", false, false);
+    text("Đừng nản lòng, hãy đứng dậy mạnh mẽ hơn!", 12, GREEN, msgBox.cx, msgBox.y + 94, "c", true, false);
+
+    const debtFuture = G.withdrawnGems - 1000;
+    const debtInfo = debtFuture < 0
+      ? `Ghi nhận nợ: -$${Math.abs(debtFuture).toLocaleString("en-US")} ~ -${(Math.abs(debtFuture) * VND_RATE).toLocaleString("en-US")} VNĐ`
+      : `Số dư Bank sau trừ: $${debtFuture.toLocaleString("en-US")} ~ ${(debtFuture * VND_RATE).toLocaleString("en-US")} VNĐ`;
+    text(`(!) Quỹ KC = 0. Ví Bank sẽ bị trừ $1,000 (${debtInfo})`, 10, "#ff7878", msgBox.cx, msgBox.y + 124, "c", false, false);
+
+    const btnTxt = "Rút vốn khẩn cấp $1,000 từ Ví Bank (Ghi nhận nợ -$1,000 ~ -26,000,000 VNĐ)";
+    button(BTN_MARGIN_ACTION, btnTxt, RED, 11);
+  }
+  ctx.restore();
+}
+
+function drawModal() {
+  if (V.modalAnim <= 0.01) return;
+
+  // 1. Mờ nền bán trong suốt (dimming backdrop)
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${(0.82 * V.modalAnim).toFixed(3)})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  // 2. Thẻ Modal với hiệu ứng nảy (pop scaling) và mờ dần (alpha fade)
+  ctx.save();
+  ctx.globalAlpha = V.modalAnim;
+  const easeT = 1.0 - Math.pow(1.0 - V.modalAnim, 3);
+  const scale = 0.93 + 0.07 * easeT;
+  if (scale < 0.999) {
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-W / 2, -H / 2);
+  }
+  drawModalCard();
+  ctx.restore();
+}
+
+function drawModalCard() {
+  const borderCol = G.modalTab === 0 ? GREEN : (G.modalTab === 1 ? CYAN : (G.modalTab === 2 ? GOLD : "#b46eff"));
+  const pulse = (Math.sin(V.anim * 3.0) + 1.0) / 2.0;
+  drawGlowRect(MODAL, borderCol, 0.09 + 0.12 * pulse, 12, 4);
+  rrect(MODAL, 12, "#0e101c"); strokeBox(MODAL, 12, borderCol, 2);
+
+  // Tabs với hover mượt mà
+  const t0 = G.modalTab === 0, h0 = hit(TAB_DAILY_BTN, mouse);
+  rrect(TAB_DAILY_BTN, 6, t0 ? "#182d23" : (h0 ? "#1c2434" : "#121624"));
+  strokeBox(TAB_DAILY_BTN, 6, t0 ? GREEN : (h0 ? "#648cbe" : "#32465f"), (t0 || h0) ? 2 : 1);
+  if (t0) drawGlowRect(TAB_DAILY_BTN, GREEN, 0.1, 6, 2);
+  else if (h0) drawGlowRect(TAB_DAILY_BTN, "#648cbe", 0.06, 6, 2);
+  text("1. NHẬT KÝ", 12, t0 ? GREEN : (h0 ? WHITE : MUTED), TAB_DAILY_BTN.cx, TAB_DAILY_BTN.cy, "c", true, false);
+
+  const t1 = G.modalTab === 1, h1 = hit(TAB_POCKET_BTN, mouse);
+  rrect(TAB_POCKET_BTN, 6, t1 ? "#0f2a3c" : (h1 ? "#1c2434" : "#121624"));
+  strokeBox(TAB_POCKET_BTN, 6, t1 ? CYAN : (h1 ? "#648cbe" : "#32465f"), (t1 || h1) ? 2 : 1);
+  if (t1) drawGlowRect(TAB_POCKET_BTN, CYAN, 0.1, 6, 2);
+  else if (h1) drawGlowRect(TAB_POCKET_BTN, "#648cbe", 0.06, 6, 2);
+  text("2. BANK (1:1)", 12, t1 ? CYAN : (h1 ? WHITE : MUTED), TAB_POCKET_BTN.cx, TAB_POCKET_BTN.cy, "c", true, false);
+
+  const t2 = G.modalTab === 2, h2 = hit(TAB_STATS_BTN, mouse);
+  rrect(TAB_STATS_BTN, 6, t2 ? "#2e2410" : (h2 ? "#1c2434" : "#121624"));
+  strokeBox(TAB_STATS_BTN, 6, t2 ? GOLD : (h2 ? "#648cbe" : "#32465f"), (t2 || h2) ? 2 : 1);
+  if (t2) drawGlowRect(TAB_STATS_BTN, GOLD, 0.1, 6, 2);
+  else if (h2) drawGlowRect(TAB_STATS_BTN, "#648cbe", 0.06, 6, 2);
+  text("3. BIỂU ĐỒ & CHỈ SỐ", 12, t2 ? GOLD : (h2 ? WHITE : MUTED), TAB_STATS_BTN.cx, TAB_STATS_BTN.cy, "c", true, false);
+
+  const t3 = G.modalTab === 3, h3 = hit(TAB_BACKUP_BTN, mouse);
+  rrect(TAB_BACKUP_BTN, 6, t3 ? "#231432" : (h3 ? "#1c2434" : "#121624"));
+  strokeBox(TAB_BACKUP_BTN, 6, t3 ? "#b46eff" : (h3 ? "#648cbe" : "#32465f"), (t3 || h3) ? 2 : 1);
+  if (t3) drawGlowRect(TAB_BACKUP_BTN, "#b46eff", 0.1, 6, 2);
+  else if (h3) drawGlowRect(TAB_BACKUP_BTN, "#648cbe", 0.06, 6, 2);
+  text("4. TÂM LÝ & SAO LƯU", 12, t3 ? "#be82ff" : (h3 ? WHITE : MUTED), TAB_BACKUP_BTN.cx, TAB_BACKUP_BTN.cy, "c", true, false);
+
+  button(BTN_TIME_INFO, "Giờ máy: " + getSystemEnergy().label, CYAN, 11);
+
+  // Close X
+  const closeHover = hit(M_CLOSE, mouse);
+  rrect(M_CLOSE, 6, closeHover ? "#be2837" : "#5f1c28");
+  if (closeHover) drawGlowRect(M_CLOSE, RED, 0.16, 6, 3);
+  const c = M_CLOSE; line(c.cx - 6, c.cy - 6, c.cx + 6, c.cy + 6, WHITE, 2); line(c.cx - 6, c.cy + 6, c.cx + 6, c.cy - 6, WHITE, 2);
+  line(32, 58, 991, 58, "#324660", 1);
+
+  // Vốn & Tiến độ
+  const box = R(48, 64, 928, 50); rrect(box, 8, "#161a2e"); strokeBox(box, 8, "#283250", 1);
+  const pct = Math.min(100, G.capital / GOAL * 100);
+  text("VỐN THỰC TẾ: $" + G.capital.toLocaleString("en-US") + " / $" + GOAL.toLocaleString("en-US") + "  (" + pct.toFixed(1) + "%)", 13, GREEN, 62, 78, "l", true, false);
+  text("ĐÃ XONG: " + doneDays() + " / 1000 NGÀY", 13, CYAN, 460, 78, "l", true, false);
+  text(`SẤM SÉT: ${getSystemEnergy().label}`, 12, GOLD, 960, 78, "r", true, false);
+  bar(R(62, 94, 900, 8), G.capital / GOAL, pct < 100 ? GREEN : GOLD, "#0c0e19", "#283c50", V.anim);
+
+  if (G.modalTab === 0) {
+    // TAB 0
+    const inRow = R(48, 120, 928, 40); rrect(inRow, 6, "#121826"); strokeBox(inRow, 6, "#2d3c5a", 1);
+    const nxt = nextDayIdx() + 1;
+    text(`Hôm nay (Ngày ${nxt}) - Tiền kiếm được ($):`, 12, WHITE, 60, 140, "l", true, false);
+
+    rrect(INPUT_BOX_RECT, 5, "#1c2438"); strokeBox(INPUT_BOX_RECT, 5, GREEN, 1);
+    drawGlowRect(INPUT_BOX_RECT, GREEN, 0.08, 5, 2);
+    text(`$${G.inputText}`, 13, GOLD, INPUT_BOX_RECT.x + 8, INPUT_BOX_RECT.cy, "l", true, false);
+
+    button(BTN_Q_M50, "-50", RED, 11);
+    button(BTN_Q_P50, "+50", CYAN, 11);
+    button(BTN_Q_P100, "+100", GREEN, 11);
+    button(BTN_Q_P250, "+250", GOLD, 11);
+    const allDisciplined = (G.checklist.filter(Boolean).length === 4);
+    if (!allDisciplined) {
+      button(BTN_SUBMIT_TODAY, "Cần 4/4 Kỷ Luật Trước Lệnh 🔒", "#e65050", 11);
+    } else {
+      button(BTN_SUBMIT_TODAY, `Ghi nhận ngày ${nxt}  >`, GREEN, 12);
+    }
+
+    const a = G.page * PAGE_SIZE + 1, b = (G.page + 1) * PAGE_SIZE;
+    text("Trang " + (G.page + 1) + " / " + PAGE_COUNT + "   (Ngày " + a + " - " + b + ")", 13, WHITE, 52, 177, "l", true, false);
+    button(M_PREV, "< Trang trước", CYAN, 11); button(M_NEXT, "Trang sau >", CYAN, 11);
+
+    rrect(R(48, 192, 928, 342), 8, "#101322");
+    for (let k = 0; k < PAGE_SIZE; k++) {
+      const idx = G.page * PAGE_SIZE + k; if (idx >= 1000) break;
+      const r = dayCell(k), done = G.days[idx], val = G.dayProfits[idx], hv = hit(r, mouse);
+      rrect(r, 4, done ? "#182820" : hv ? "#1e2438" : "#141828");
+      strokeBox(r, 4, done ? GREEN : hv ? "#5a78a0" : "#262e46", 1);
+      checkbox(R(r.x + 6, r.cy - 7, 14, 14), done, hv, GREEN);
+      const sign = val >= 0 ? "+" : "";
+      text(`N.${idx + 1}: ${sign}$${val.toLocaleString("en-US")}`, 11, done ? GREEN : hv ? "#f0faff" : "#aab9cd", r.x + 26, r.cy, "l", true, false);
+      if (isDayFrozen(idx)) {
+        text("🔒", 10, "#ffd250", r.right - 14, r.cy, "c", false, false);
+      }
+    }
+  } else if (G.modalTab === 1) {
+    // TAB 1: TIỀN TRONG BANK (QUY ĐỔI 3 CHIỀU 1:1 & VNĐ)
+    const pBox = R(48, 122, 928, 412); rrect(pBox, 8, "#101422"); strokeBox(pBox, 8, "#24304b", 1);
+    text("QUY ĐỔI TIỀN TỆ 3 NGUỒN - 1 VÀNG = 1 KIM CƯƠNG = $1 BANK = 26,000 VNĐ", 14, GOLD, pBox.cx, 138, "c", true, false);
+    text("Quy đổi linh hoạt giữa Ví trade (🪙 Vàng) <-> Quỹ dự phòng (💎 Kim Cương) <-> Tài khoản ngoài sàn (🏦 Bank).", 11, MUTED, pBox.cx, 156, "c", false, false);
+
+    // 3 khối thống kê tài sản
+    // Khối 1: Vàng
+    const c1 = R(70, 172, 260, 66); rrect(c1, 8, "#161c2e"); strokeBox(c1, 8, GOLD, 1);
+    text("🪙 VÀNG (XU TRADE SÀN)", 11, MUTED, c1.cx, 186, "c", false, false);
+    text(`${G.coins.toLocaleString("en-US")} Vàng`, 17, GOLD, c1.cx, 206, "c", true, false);
+    text(`~ ${(G.coins * VND_RATE).toLocaleString("en-US")} VNĐ`, 10, "#ffdc82", c1.cx, 224, "c", false, false);
+
+    // Khối 2: Kim Cương
+    const c2 = R(362, 172, 260, 66); rrect(c2, 8, "#161c2e"); strokeBox(c2, 8, CYAN, 1);
+    text("💎 KIM CƯƠNG (DỰ PHÒNG)", 11, MUTED, c2.cx, 186, "c", false, false);
+    text(`${G.gems.toLocaleString("en-US")} KC`, 17, CYAN, c2.cx, 206, "c", true, false);
+    text(`~ ${(G.gems * VND_RATE).toLocaleString("en-US")} VNĐ`, 10, "#82e6ff", c2.cx, 224, "c", false, false);
+
+    // Khối 3: Bank
+    const c3 = R(654, 172, 260, 66);
+    const isBankNeg = G.withdrawnGems < 0;
+    const bBorder = isBankNeg ? RED : GREEN;
+    const bBg = isBankNeg ? "#241216" : "#161c2e";
+    rrect(c3, 8, bBg); strokeBox(c3, 8, bBorder, 1);
+    const bTitle = isBankNeg ? "🏦 VÍ BANK (ĐANG NỢ!)" : "🏦 VÍ BANK (NGOÀI SÀN)";
+    text(bTitle, 11, isBankNeg ? RED : MUTED, c3.cx, 186, "c", false, false);
+    if (isBankNeg) {
+      text(`-$${Math.abs(G.withdrawnGems).toLocaleString("en-US")}`, 17, RED, c3.cx, 206, "c", true, false);
+      text(`~ -${(Math.abs(G.withdrawnGems) * VND_RATE).toLocaleString("en-US")} VNĐ`, 10, "#ff7882", c3.cx, 224, "c", false, false);
+    } else {
+      text(`$${G.withdrawnGems.toLocaleString("en-US")}`, 17, GREEN, c3.cx, 206, "c", true, false);
+      text(`~ ${(G.withdrawnGems * VND_RATE).toLocaleString("en-US")} VNĐ`, 10, "#96ffa0", c3.cx, 224, "c", false, false);
+    }
+
+    // Chọn chiều quy đổi (Từ -> Sang)
+    text("Từ:", 12, WHITE, 70, 261, "l", true, false);
+    button(BTN_CONV_FROM_0, "🪙 Vàng", G.convFrom === 0 ? GOLD : MUTED, 11);
+    button(BTN_CONV_FROM_1, "💎 KC", G.convFrom === 1 ? CYAN : MUTED, 11);
+    button(BTN_CONV_FROM_2, "🏦 Bank", G.convFrom === 2 ? GREEN : MUTED, 11);
+
+    button(BTN_CONV_SWAP, "⇄ Đổi", PURPLE, 11);
+
+    text("Sang:", 12, WHITE, 514, 261, "l", true, false);
+    button(BTN_CONV_TO_0, "🪙 Vàng", G.convTo === 0 ? GOLD : MUTED, 11);
+    button(BTN_CONV_TO_1, "💎 KC", G.convTo === 1 ? CYAN : MUTED, 11);
+    button(BTN_CONV_TO_2, "🏦 Bank", G.convTo === 2 ? GREEN : MUTED, 11);
+
+    // Ô nhập số lượng + nút nhanh
+    text("Số lượng:", 12, WHITE, 70, 298, "l", true, false);
+    rrect(BANK_INP_RECT, 5, "#141928"); strokeBox(BANK_INP_RECT, 5, CYAN, 1);
+    text(G.bankInputText, 13, GOLD, BANK_INP_RECT.x + 8, BANK_INP_RECT.cy, "l", true, false);
+
+    button(BTN_B_10, "10", CYAN, 11);
+    button(BTN_B_50, "50", CYAN, 11);
+    button(BTN_B_100, "100", GREEN, 11);
+    button(BTN_B_500, "500", GREEN, 11);
+    button(BTN_B_ALL, "Tất cả", GOLD, 11);
+    button(BTN_B_CLR, "Xóa", RED, 11);
+
+    // Thanh live preview tỷ lệ & VNĐ
+    const amt = bankAmount();
+    const vndPreview = amt * VND_RATE;
+    drawGlowRect(BANK_PREV_RECT, GREEN, 0.06 + 0.08 * pulse, 5, 3);
+    rrect(BANK_PREV_RECT, 5, "#0e261c"); strokeBox(BANK_PREV_RECT, 5, GREEN, 1);
+    const fn = CURRENCY_NAMES[G.convFrom], tn = CURRENCY_NAMES[G.convTo];
+    const fi = CURRENCY_ICONS[G.convFrom], ti = CURRENCY_ICONS[G.convTo];
+    text(`XEM TRƯỚC:  ${amt.toLocaleString("en-US")} ${fi} ${fn}  ->  ${amt.toLocaleString("en-US")} ${ti} ${tn}   <===>   ${vndPreview.toLocaleString("en-US")} VNĐ`, 12, GOLD, BANK_PREV_RECT.cx, BANK_PREV_RECT.cy, "c", true, false);
+
+    // Nút xác nhận chuyển đổi
+    button(BTN_EXECUTE_CONV, `Xác nhận chuyển ${amt.toLocaleString("en-US")} ${fn} -> ${tn}`, CYAN, 13);
+
+    // Hộp lưu ý
+    const noteBox = R(70, 406, 844, 116); rrect(noteBox, 6, "#121826"); strokeBox(noteBox, 6, "#233046", 1);
+    text("QUY TẮC QUẢN LÝ TIỀN TỆ 3 NGUỒN & TỶ GIÁ VNĐ:", 12, GOLD, 90, 424, "l", true, false);
+    text("1. 3 nguồn tài sản: 🪙 Vàng (Ví trade)  <->  💎 Kim Cương (Quỹ dự phòng)  <->  🏦 Bank (Tài khoản ngân hàng ngoài sàn).", 11, TEXT_LIGHT, 90, 444, "l", false, false);
+    text("2. Tỷ giá cố định 1:1: 1 Vàng = 1 Kim Cương = $1 Bank = 26,000 VNĐ (Ví dụ: 10 Vàng = 260k VNĐ, 1,000 Vàng = 26 triệu VNĐ).", 11, TEXT_LIGHT, 90, 464, "l", false, false);
+    text("3. Nếu Bank bị ghi nợ âm do ứng cứu cháy tài khoản, có thể nạp từ Vàng hoặc Kim Cương sang Bank để trả dần nợ.", 11, CYAN, 90, 484, "l", false, false);
+  } else if (G.modalTab === 2) {
+    // TAB 2: BIỂU ĐỒ & CHỈ SỐ HIỆU SUẤT TRADING
+    const stats = calcStats();
+
+    // 4 Thẻ chỉ số
+    const cards = [
+      [METRIC_CARD_1, "TỈ LỆ THẮNG (WIN RATE)", `${stats.winRate.toFixed(1)}%`, `${stats.winDays}W / ${stats.lossDays}L (${stats.totalTrades} lệnh)`, stats.winRate >= 50 ? GREEN : RED],
+      [METRIC_CARD_2, "PROFIT FACTOR (PF)", `${stats.profitFactor.toFixed(2)}`, `+$${stats.totalProfit.toLocaleString("en-US")} / -$${stats.totalLoss.toLocaleString("en-US")}`, stats.profitFactor >= 1.5 ? GOLD : (stats.profitFactor >= 1.0 ? CYAN : RED)],
+      [METRIC_CARD_3, "MAX DRAWDOWN (SỤT GIẢM)", `-${stats.maxDrawdownPct.toFixed(1)}%`, `-$${stats.maxDrawdownDollar.toLocaleString("en-US")} từ đỉnh ATH`, stats.maxDrawdownPct <= 5 ? GREEN : (stats.maxDrawdownPct <= 12 ? "#ffaa3c" : RED)],
+      [METRIC_CARD_4, "CHUỖI PHONG ĐỘ (STREAK)", `W:${stats.maxWinStreak} / L:${stats.maxLossStreak}`, `Thắng max: ${stats.maxWinStreak}N | Thua max: ${stats.maxLossStreak}N`, "#b48cff"],
+    ];
+    cards.forEach(([rc, title, valStr, subStr, valCol]) => {
+      rrect(rc, 8, "#141a2a"); strokeBox(rc, 8, "#2d3c5a", 1);
+      text(title, 10, MUTED, rc.cx, rc.y + 13, "c", false, false);
+      text(valStr, 18, valCol, rc.cx, rc.y + 34, "c", true, false);
+      text(subStr, 10, TEXT_LIGHT, rc.cx, rc.y + 52, "c", false, false);
+    });
+
+    // Khung Biểu đồ Equity Curve
+    rrect(CHART_RECT, 8, "#101422"); strokeBox(CHART_RECT, 8, "#263450", 1);
+    text("ĐƯỜNG CONG TĂNG TRƯỞNG VỐN THỰC TẾ (EQUITY CURVE) - HÀNH TRÌNH $1,000 -> $1,000,000", 12, GOLD, CHART_RECT.x + 16, CHART_RECT.y + 16, "l", true, false);
+    const maxAth = Math.max(...stats.equityPoints.map(p => p.eq));
+    text(`Vốn hiện tại: $${G.capital.toLocaleString("en-US")}  |  Đỉnh cao nhất: $${maxAth.toLocaleString("en-US")}`, 11, CYAN, CHART_RECT.right - 16, CHART_RECT.y + 16, "r", false, false);
+
+    const pts = stats.equityPoints;
+    if (pts.length <= 1) {
+      text("CHƯA CÓ DỮ LIỆU ĐỂ VẼ BIỂU ĐỒ EQUITY CURVE", 15, MUTED, CHART_RECT.cx, CHART_RECT.cy - 12, "c", true, false);
+      text("Hãy chuyển sang Tab 1 'Nhật Ký 1,000 Ngày' và ghi nhận kết quả các ngày giao dịch đầu tiên!", 12, "#8ca0be", CHART_RECT.cx, CHART_RECT.cy + 14, "c", false, false);
+    } else {
+      const plotRect = R(CHART_RECT.x + 54, CHART_RECT.y + 38, CHART_RECT.w - 74, CHART_RECT.h - 62);
+      const eqVals = pts.map(p => p.eq);
+      const minE = Math.min(...eqVals), maxE = Math.max(...eqVals);
+      const spanE = Math.max(100, maxE - minE);
+      const padE = Math.round(spanE * 0.12);
+      const plotMin = Math.max(0, minE - padE), plotMax = maxE + padE;
+
+      for (let gl = 0; gl < 4; gl++) {
+        const gly = plotRect.bottom - Math.round(plotRect.h * (gl / 3.0));
+        const glVal = Math.round(plotMin + (plotMax - plotMin) * (gl / 3.0));
+        line(plotRect.x, gly, plotRect.right, gly, "#1c263c", 1);
+        text(`$${glVal.toLocaleString("en-US")}`, 9, "#788caa", plotRect.x - 6, gly, "r", false, false);
+      }
+
+      const nPts = pts.length;
+      const coords = pts.map((p, idx) => {
+        const sx = plotRect.x + Math.round(plotRect.w * (idx / Math.max(1, nPts - 1)));
+        const sy = plotRect.bottom - Math.round(plotRect.h * ((p.eq - plotMin) / Math.max(1, plotMax - plotMin)));
+        return { x: sx, y: sy };
+      });
+
+      if (coords.length >= 2) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(plotRect.x, plotRect.bottom);
+        coords.forEach(c => ctx.lineTo(c.x, c.y));
+        ctx.lineTo(coords[coords.length - 1].x, plotRect.bottom);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(46, 213, 115, 0.14)";
+        ctx.fill();
+
+        // Đường hào quang neon phát sáng chạy dọc đường cong
+        ctx.beginPath();
+        coords.forEach((c, i) => { if (i === 0) ctx.moveTo(c.x, c.y); else ctx.lineTo(c.x, c.y); });
+        ctx.strokeStyle = "rgba(46, 213, 115, 0.28)";
+        ctx.lineWidth = 6;
+        ctx.stroke();
+
+        ctx.beginPath();
+        coords.forEach((c, i) => { if (i === 0) ctx.moveTo(c.x, c.y); else ctx.lineTo(c.x, c.y); });
+        ctx.strokeStyle = GREEN;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      coords.forEach(c => {
+        ctx.fillStyle = "#96ffb4";
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Điểm hiện tại với vòng radar tỏa ra (pulsing beacon)
+      const last = coords[coords.length - 1];
+      const radarP = (V.anim * 2.0) % 1.0;
+      const radarR = 6 + Math.round(10 * radarP);
+      const radarA = 0.82 * (1.0 - radarP);
+      ctx.save();
+      ctx.strokeStyle = toRgba(CYAN, radarA);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(last.x, last.y, radarR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = CYAN; ctx.beginPath(); ctx.arc(last.x, last.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(last.x, last.y, 2, 0, Math.PI * 2); ctx.fill();
+
+      // Đỉnh ATH có ngôi sao vàng lấp lánh
+      const maxEqVal = Math.max(...pts.map(p => p.eq));
+      const athIdx = pts.findIndex(p => p.eq === maxEqVal);
+      if (athIdx !== -1 && coords[athIdx]) {
+        drawSparkleStar(coords[athIdx].x, coords[athIdx].y - 8, 5.0, GOLD, 0.9);
+      }
+    }
+
+    // Thanh thống kê chi tiết bên dưới biểu đồ
+    rrect(CHART_BOTTOM_BAR, 6, "#141928"); strokeBox(CHART_BOTTOM_BAR, 6, "#24304b", 1);
+    text("Lãi lớn nhất: +$" + stats.bestDay.toLocaleString("en-US"), 11, GREEN, 80, CHART_BOTTOM_BAR.cy, "l", true, false);
+    text("Lỗ nặng nhất: -$" + Math.abs(stats.worstDay).toLocaleString("en-US"), 11, stats.worstDay < 0 ? RED : MUTED, 310, CHART_BOTTOM_BAR.cy, "l", true, false);
+    text("Lãi trung bình: +$" + stats.avgWin.toLocaleString("en-US") + "/ngày", 11, GREEN, 540, CHART_BOTTOM_BAR.cy, "l", true, false);
+    text("Lỗ trung bình: -$" + stats.avgLoss.toLocaleString("en-US") + "/ngày", 11, stats.avgLoss > 0 ? RED : MUTED, 770, CHART_BOTTOM_BAR.cy, "l", true, false);
+
+  } else if (G.modalTab === 3) {
+    // TAB 3: TÂM LÝ & SAO LƯU
+    const pLeft = R(58, 124, 440, 398);
+    rrect(pLeft, 8, "#101422"); strokeBox(pLeft, 8, "#24304b", 1);
+    text("CHECKLIST KỶ LUẬT TRƯỚC PHIÊN TRADE", 13, GOLD, pLeft.cx, 142, "c", true, false);
+    text("Chỉ mở lệnh khi đã tích đủ 4 tiêu chí sống còn bên dưới:", 11, MUTED, pLeft.cx, 160, "c", false, false);
+
+    for (let i = 0; i < CHECKLIST_ITEMS.length; i++) {
+      const rc = CHK_ROWS[i], chk = G.checklist[i], hv = hit(rc, mouse);
+      rrect(rc, 6, chk ? "#16261e" : (hv ? "#181e30" : "#121624"));
+      strokeBox(rc, 6, chk ? GREEN : (hv ? "#3c5a82" : "#28344b"), 1);
+      checkbox(R(rc.x + 10, rc.cy - 7, 14, 14), chk, hv, GREEN);
+      text(CHECKLIST_ITEMS[i], 11, chk ? GREEN : (hv ? WHITE : TEXT_LIGHT), rc.x + 34, rc.cy, "l", true, false);
+    }
+
+    const checkedCnt = G.checklist.filter(Boolean).length;
+    const allChecked = (checkedCnt === CHECKLIST_ITEMS.length);
+    if (allChecked) {
+      drawGlowRect(CHK_STATUS_RECT, GREEN, 0.1 + 0.12 * pulse, 6, 4);
+    }
+    rrect(CHK_STATUS_RECT, 6, allChecked ? "#102d1c" : "#2d1418");
+    strokeBox(CHK_STATUS_RECT, 6, allChecked ? GREEN : RED, 1);
+    if (allChecked) {
+      text("ĐẠT 4/4: KỶ LUẬT TUYỆT ĐỐI - SẴN SÀNG TRADE!", 12, GREEN, CHK_STATUS_RECT.cx, CHK_STATUS_RECT.cy, "c", true, false);
+    } else {
+      text(`MỚI ĐẠT ${checkedCnt}/4: CHƯA ĐỦ ĐIỀU KIỆN - HÃY KIÊN NHẪN!`, 12, "#ff828c", CHK_STATUS_RECT.cx, CHK_STATUS_RECT.cy, "c", true, false);
+    }
+
+    rrect(CHK_QUOTE_RECT, 6, "#121626"); strokeBox(CHK_QUOTE_RECT, 6, "#283750", 1);
+    text("QUY TẮC SỐNG CÒN CỦA TRADER CHUYÊN NGHIỆP:", 11, GOLD, CHK_QUOTE_RECT.x + 14, CHK_QUOTE_RECT.y + 16, "l", true, false);
+    text("1. Bảo vệ vốn là ưu tiên số một, lợi nhuận tự khắc theo sau.", 10, TEXT_LIGHT, CHK_QUOTE_RECT.x + 14, CHK_QUOTE_RECT.y + 38, "l", false, false);
+    text("2. Thị trường luôn ở đó, chỉ có người thiếu kiên nhẫn mới rời đi.", 10, TEXT_LIGHT, CHK_QUOTE_RECT.x + 14, CHK_QUOTE_RECT.y + 58, "l", false, false);
+    text("3. Thua lỗ nhỏ là chi phí kinh doanh, không bao giờ gỡ gạc bằng cảm xúc.", 10, TEXT_LIGHT, CHK_QUOTE_RECT.x + 14, CHK_QUOTE_RECT.y + 78, "l", false, false);
+    text("4. Kỷ luật từng lệnh nhỏ sẽ tạo nên tài khoản triệu đô lớn.", 10, CYAN, CHK_QUOTE_RECT.x + 14, CHK_QUOTE_RECT.y + 98, "l", false, false);
+
+    const pRight = R(522, 124, 440, 398);
+    rrect(pRight, 8, "#101422"); strokeBox(pRight, 8, "#24304b", 1);
+    text("BẢO TOÀN DỮ LIỆU & XUẤT BÁO CÁO", 13, GOLD, pRight.cx, 142, "c", true, false);
+    text("Lưu trữ an toàn trọn đời nhật ký trading 1,000 ngày:", 11, MUTED, pRight.cx, 160, "c", false, false);
+
+    button(BTN_EXPORT_CSV, "Xuất Nhật Ký Ra File CSV (Mở Trên Excel)", GREEN, 12);
+    button(BTN_EXPORT_JSON, "Sao Lưu Toàn Bộ Tiến Trình (File JSON)", CYAN, 12);
+    button(BTN_IMPORT_JSON, "Khôi Phục Tiến Trình Từ File Sao Lưu", "#b482ff", 12);
+    button(BTN_RESET_DATA, "Đặt Lại Tiến Trình Về Mặc Định (Reset)", G.confirmReset ? RED : "#8c323c", 11);
+
+    rrect(BACKUP_INFO_RECT, 6, "#121826"); strokeBox(BACKUP_INFO_RECT, 6, "#26324b", 1);
+    text("THÔNG TIN HÀNH TRÌNH HALODAE:", 11, CYAN, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 16, "l", true, false);
+    text("- Danh hiệu: " + traderTitle(), 11, GOLD, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 38, "l", true, false);
+    text(`- Đã hoàn thành: ${doneDays()} / 1,000 ngày giao dịch`, 10, WHITE, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 60, "l", false, false);
+    text(`- Trạng thái sấm sét: ${getSystemEnergy().label}`, 10, TEXT_LIGHT, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 80, "l", false, false);
+    text("- Vị trí lưu: Web LocalStorage & File JSON (v4)", 9, MUTED, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 102, "l", false, false);
+  }
+}
+
+const bg = new Image();
+let bgReady = false;
+bg.onload = () => { bgReady = true; };
+bg.src = "assets/bg_clean.png";
+
+function frame() {
+  V.anim += 0.05;
+  V.cap += (G.capital - V.cap) * 0.14;
+  V.xp += (G.xp - V.xp) * 0.15;
+  if (V.banner > 0) V.banner--;
+
+  // Hiệu ứng mở/đóng modal mượt mà
+  if (G.modal) {
+    V.modalAnim = Math.min(1.0, V.modalAnim + 0.18);
+  } else {
+    V.modalAnim = Math.max(0.0, V.modalAnim - 0.22);
+  }
+
+  ambientParticles.forEach(ap => ap.update());
+
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.96;
+    p.vy += 0.13;
+    p.angle = (p.angle || 0) + (p.rotSpeed || 0);
+    p.age++;
+    p.size = Math.max(0, p.size - 0.08);
+  });
+  particles = particles.filter(p => p.age < p.life && p.size > 0);
+
+  ripples.forEach(r => r.update());
+  ripples = ripples.filter(r => r.alive());
+
+  floats.forEach(t => { t.y -= 1; t.age++; });
+  floats = floats.filter(t => t.age < t.life);
+
+  const pulse = (Math.sin(V.anim * 3) + 1) / 2;
+
+  ctx.clearRect(0, 0, W, H);
+  if (bgReady) ctx.drawImage(bg, 0, 0, W, H); else { ctx.fillStyle = "#0b0816"; ctx.fillRect(0, 0, W, H); }
+
+  // Hạt nền cyber và bụi vàng trôi lơ lửng liên tục
+  ambientParticles.forEach(ap => ap.draw());
+
+  // Ánh sáng màn hình biểu đồ giao dịch hắt nhẹ ra phòng trade
+  drawDeskMonitorGlow();
+
+  drawResources();
+  drawCharacter();
+  drawDaily();
+  drawMilestones(pulse);
+  drawRules();
+  drawBosses();
+  drawDiscipline();
+  drawBonus();
+  drawMap(pulse);
+
+  // Sóng xung kích khi bấm chuột
+  ripples.forEach(r => r.draw());
+
+  // Hạt nổ ăn mừng đa dạng kiểu với góc xoay sống động
+  particles.forEach(p => {
+    const alpha = Math.max(0, 1 - p.age / p.life);
+    if (p.kind === "star") {
+      drawSparkleStar(p.x, p.y, p.size * 1.4, p.color, alpha, p.angle || 0);
+    } else if (p.kind === "confetti") {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle || 0);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size, -p.size * 0.5, p.size * 2, p.size);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  });
+
+  floats.forEach(t => {
+    const al = 1 - t.age / t.life;
+    setFont(14, true);
+    const w = ctx.measureText(t.text).width, x = Math.max(4, Math.min(W - w - 4, t.x - w / 2));
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(0,0,0,.7)";
+    ctx.fillText(t.text, x + 1, t.y + 1);
+    ctx.fillStyle = t.color;
+    ctx.fillText(t.text, x, t.y);
+    ctx.restore();
+  });
+
+  drawBanner();
+
+  if (G.modal || V.modalAnim > 0.01) {
+    drawModal();
+  } else {
+    const t = tooltip(mouse);
+    if (t) drawTooltip(t);
+  }
+
+  // Modal Cháy Tài Khoản (Margin Call Modal) hiển thị đè lên trên cùng khi kích hoạt
+  if (G.marginCallOpen) {
+    drawMarginCallModal();
+  }
+
+  cv.style.cursor = interactive(mouse) ? "pointer" : "default";
+  requestAnimationFrame(frame);
+}
+
+function pos(e) {
+  const b = cv.getBoundingClientRect();
+  return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height };
+}
+cv.addEventListener("mousemove", e => { mouse = pos(e); });
+cv.addEventListener("mouseleave", () => { mouse = { x: -1, y: -1 }; });
+cv.addEventListener("click", e => { click(pos(e)); });
+cv.addEventListener("wheel", e => { if (G.modal && G.modalTab === 0 && !G.marginCallOpen) { e.preventDefault(); setPage(G.page + (e.deltaY > 0 ? 1 : -1)); } }, { passive: false });
+window.addEventListener("keydown", e => {
+  if (G.marginCallOpen) return;
+  if (!G.modal) return;
+  if (e.key === "Escape") G.modal = false;
+  else if (G.modalTab === 0 && (e.key === "ArrowLeft" || e.key === "PageUp")) setPage(G.page - 1);
+  else if (G.modalTab === 0 && (e.key === "ArrowRight" || e.key === "PageDown")) setPage(G.page + 1);
+});
+
+load(); recalc(); V.cap = G.capital; V.xp = G.xp;
+syncInputWithNextDay();
+const params = new URLSearchParams(window.location.search);
+if (params.get("modal")) { G.modal = true; G.modalTab = 0; }
+if (params.get("pocket") || params.get("bank")) { G.modal = true; G.modalTab = 1; }
+if (params.get("stats")) { G.modal = true; G.modalTab = 2; }
+if (params.get("backup")) { G.modal = true; G.modalTab = 3; }
+if (params.get("margin")) { G.coins = 0; G.gems = 1000; checkMarginCall(); }
+if (params.get("margin2")) { G.coins = 0; G.gems = 0; checkMarginCall(); }
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
