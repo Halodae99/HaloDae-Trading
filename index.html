@@ -89,8 +89,10 @@ const TAB_BACKUP_BTN = R(526, 24, 160, 28);
 const BTN_TIME_INFO = R(692, 24, 246, 28);
 
 const INPUT_BOX_RECT = R(326, 126, 90, 28);
-const BTN_Q_M50 = R(424, 126, 40, 28), BTN_Q_P50 = R(468, 126, 40, 28), BTN_Q_P100 = R(512, 126, 46, 28), BTN_Q_P250 = R(562, 126, 46, 28);
-const BTN_SUBMIT_TODAY = R(618, 126, 170, 28);
+const BTN_Q_BLOW = R(420, 126, 52, 28);
+const BTN_Q_P50 = R(476, 126, 40, 28), BTN_Q_P100 = R(520, 126, 46, 28), BTN_Q_P250 = R(570, 126, 46, 28);
+const BTN_SUBMIT_TODAY = R(622, 126, 172, 28);
+const BTN_REST_TODAY = R(800, 126, 172, 28);
 
 const PAGE_SIZE = 50, PAGE_COUNT = 20;
 const M_PREV = R(790, 166, 90, 22), M_NEXT = R(890, 166, 86, 22);
@@ -203,6 +205,11 @@ function nextDayIdx() {
 }
 function syncInputWithNextDay() {
   G.inputText = String(G.dayProfits[nextDayIdx()]);
+}
+function isTradingDay() {
+  if (G.forceTradingDay !== undefined && G.forceTradingDay !== null) return Boolean(G.forceTradingDay);
+  const d = new Date().getDay();
+  return d >= 1 && d <= 5;
 }
 function recalc() {
   G.capital = G.coins;
@@ -586,6 +593,11 @@ function give(xp = 0) {
 
 /* ---------- thao tác nhật ký ---------- */
 function submitToday() {
+  if (!isTradingDay()) {
+    play("uncheck");
+    floatText("Cuối tuần thị trường đóng cửa! Hãy nghỉ ngơi kỷ luật để tái tạo năng lượng!", W / 2, 140, RED);
+    return;
+  }
   if (G.checklist.filter(Boolean).length < 4) {
     play("uncheck");
     floatText("Chưa đủ 4/4 tiêu chí kỷ luật! Hãy hoàn thành Checklist trước khi vào lệnh!", W / 2, 140, RED);
@@ -597,15 +609,20 @@ function submitToday() {
   let val = parseInt(G.inputText.trim(), 10);
   if (isNaN(val)) val = G.dayProfits[idx];
 
+  // Quản trị rủi ro Binary: Lãi hoặc Cháy hết số vốn hiện có (không âm tài khoản)
+  if (G.coins + val <= 0) {
+    val = -G.coins;
+    G.coins = 0;
+  } else {
+    G.coins += val;
+  }
+
   G.dayProfits[idx] = val;
   G.days[idx] = true;
   G.dayTimestamps[idx] = Math.floor(Date.now() / 1000);
-
-  // Giao dịch hàng ngày cộng/trừ trực tiếp vào Xu Vàng (vốn trade)
-  G.coins += val;
   G.capital = G.coins;
 
-  play("coin");
+  play(val >= 0 ? "coin" : "uncheck");
   if (!G.daysRew[idx]) { G.daysRew[idx] = true; give(50); }
 
   const sign = val >= 0 ? "+" : "";
@@ -621,8 +638,33 @@ function submitToday() {
   checkMarginCall();
 }
 
+function restToday() {
+  if (!isTradingDay()) {
+    play("uncheck");
+    floatText("Cuối tuần thị trường đóng cửa! Hãy nghỉ ngơi kỷ luật để tái tạo năng lượng!", W / 2, 140, RED);
+    return;
+  }
+
+  const idx = nextDayIdx();
+  G.dayProfits[idx] = 0;
+  G.days[idx] = true;
+  G.dayTimestamps[idx] = Math.floor(Date.now() / 1000);
+
+  play("buff");
+  if (!G.daysRew[idx]) { G.daysRew[idx] = true; give(50); }
+
+  floatText(`Ngày ${idx + 1}: Kỷ luật thép! Bảo toàn vốn $0 thành công! +50 XP`, W / 2, 140, CYAN);
+  burst(W / 2, 140, CYAN, 24);
+
+  recalc();
+  const nxt = nextDayIdx();
+  G.page = Math.floor(nxt / PAGE_SIZE);
+  syncInputWithNextDay();
+  save();
+}
+
 function toggleDay(idx, x, y) {
-  const val = G.dayProfits[idx];
+  let val = G.dayProfits[idx];
   if (G.days[idx]) {
     // Đang bật -> Kiểm tra khóa 24h
     if (isDayFrozen(idx)) {
@@ -633,14 +675,20 @@ function toggleDay(idx, x, y) {
     // Cho phép hủy trong vòng 24h
     G.days[idx] = false;
     G.dayTimestamps[idx] = 0;
-    G.coins -= val;
+    G.coins = Math.max(0, G.coins - val);
     G.capital = G.coins;
     play("uncheck");
     const sign = val >= 0 ? "+" : "";
     floatText(`Hủy ${sign}$${val.toLocaleString("en-US")}`, x, y, MUTED);
     checkMarginCall();
   } else {
-    // Chưa bật -> Cần 4/4 checklist kỷ luật
+    // Chưa bật -> Kiểm tra cuối tuần
+    if (!isTradingDay()) {
+      play("uncheck");
+      floatText("Cuối tuần thị trường đóng cửa! Hãy nghỉ ngơi kỷ luật để tái tạo năng lượng!", W / 2, 140, RED);
+      return;
+    }
+    // Cần 4/4 checklist kỷ luật
     if (G.checklist.filter(Boolean).length < 4) {
       play("uncheck");
       floatText("Chưa đủ 4/4 tiêu chí kỷ luật! Hãy hoàn thành Checklist trước khi vào lệnh!", W / 2, 140, RED);
@@ -649,7 +697,13 @@ function toggleDay(idx, x, y) {
     }
     G.days[idx] = true;
     G.dayTimestamps[idx] = Math.floor(Date.now() / 1000);
-    G.coins += val;
+    if (G.coins + val <= 0) {
+      val = -G.coins;
+      G.coins = 0;
+    } else {
+      G.coins += val;
+    }
+    G.dayProfits[idx] = val;
     G.capital = G.coins;
     play("check");
     if (!G.daysRew[idx]) { G.daysRew[idx] = true; give(50); }
@@ -722,8 +776,10 @@ function executeConversion() {
   }
 
   // Cộng đích
-  if (G.convTo === 0) G.coins += amt;
-  else if (G.convTo === 1) G.gems += amt;
+  if (G.convTo === 0) {
+    G.coins += amt;
+    G.peakCapital = Math.max(START_CAPITAL, G.coins);
+  } else if (G.convTo === 1) G.gems += amt;
   else if (G.convTo === 2) G.withdrawnGems += amt;
 
   recalc();
@@ -1032,6 +1088,12 @@ function click(p) {
         return;
       }
       if (hit(BTN_SUBMIT_TODAY, p)) {
+        if (!isTradingDay()) {
+          burstRipple(p.x, p.y, "#8c8ca0", 28);
+          play("uncheck");
+          floatText("Cuối tuần thị trường đóng cửa! Hãy nghỉ ngơi kỷ luật để tái tạo năng lượng!", W / 2, 140, RED);
+          return;
+        }
         if (G.checklist.filter(Boolean).length < 4) {
           burstRipple(p.x, p.y, RED, 28);
           play("uncheck");
@@ -1043,7 +1105,18 @@ function click(p) {
         submitToday();
         return;
       }
-      if (hit(BTN_Q_M50, p)) { burstRipple(p.x, p.y, RED, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) - 50); return; }
+      if (hit(BTN_REST_TODAY, p)) {
+        if (!isTradingDay()) {
+          burstRipple(p.x, p.y, "#8c8ca0", 28);
+          play("uncheck");
+          floatText("Cuối tuần thị trường đóng cửa! Hãy nghỉ ngơi kỷ luật để tái tạo năng lượng!", W / 2, 140, RED);
+          return;
+        }
+        burstRipple(p.x, p.y, CYAN, 32);
+        restToday();
+        return;
+      }
+      if (hit(BTN_Q_BLOW, p)) { burstRipple(p.x, p.y, RED, 22); G.inputText = String(-Math.max(0, G.coins)); return; }
       if (hit(BTN_Q_P50, p)) { burstRipple(p.x, p.y, CYAN, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) + 50); return; }
       if (hit(BTN_Q_P100, p)) { burstRipple(p.x, p.y, GREEN, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) + 100); return; }
       if (hit(BTN_Q_P250, p)) { burstRipple(p.x, p.y, GOLD, 22); G.inputText = String((parseInt(G.inputText, 10) || 0) + 250); return; }
@@ -1140,7 +1213,7 @@ function interactive(p) {
   if (G.modal) {
     if (hit(M_CLOSE, p) || hit(TAB_DAILY_BTN, p) || hit(TAB_POCKET_BTN, p) || hit(TAB_STATS_BTN, p) || hit(TAB_BACKUP_BTN, p) || hit(BTN_TIME_INFO, p)) return true;
     if (G.modalTab === 0) {
-      return [INPUT_BOX_RECT, BTN_SUBMIT_TODAY, BTN_Q_M50, BTN_Q_P50, BTN_Q_P100, BTN_Q_P250, M_PREV, M_NEXT].some(r => hit(r, p)) ||
+      return [INPUT_BOX_RECT, BTN_SUBMIT_TODAY, BTN_REST_TODAY, BTN_Q_BLOW, BTN_Q_P50, BTN_Q_P100, BTN_Q_P250, M_PREV, M_NEXT].some(r => hit(r, p)) ||
         Array.from({ length: PAGE_SIZE }, (_, k) => dayCell(k)).some(r => hit(r, p));
     } else if (G.modalTab === 1) {
       return [BTN_CONV_FROM_0, BTN_CONV_FROM_1, BTN_CONV_FROM_2, BTN_CONV_SWAP,
@@ -1732,15 +1805,22 @@ function drawModalCard() {
     drawGlowRect(INPUT_BOX_RECT, GREEN, 0.08, 5, 2);
     text(`$${G.inputText}`, 13, GOLD, INPUT_BOX_RECT.x + 8, INPUT_BOX_RECT.cy, "l", true, false);
 
-    button(BTN_Q_M50, "-50", RED, 11);
+    button(BTN_Q_BLOW, "Cháy $0", RED, 11);
     button(BTN_Q_P50, "+50", CYAN, 11);
     button(BTN_Q_P100, "+100", GREEN, 11);
     button(BTN_Q_P250, "+250", GOLD, 11);
+
+    const isWeekend = !isTradingDay();
     const allDisciplined = (G.checklist.filter(Boolean).length === 4);
-    if (!allDisciplined) {
+    if (isWeekend) {
+      button(BTN_SUBMIT_TODAY, "Cuối Tuần Nghỉ Ngơi 🔒", "#828296", 11);
+      button(BTN_REST_TODAY, "Thị Trường Đóng Cửa 🔒", "#5a5f73", 11);
+    } else if (!allDisciplined) {
       button(BTN_SUBMIT_TODAY, "Cần 4/4 Kỷ Luật Trước Lệnh 🔒", "#e65050", 11);
+      button(BTN_REST_TODAY, "Nghỉ Trade Bảo Toàn ($0)", CYAN, 11);
     } else {
       button(BTN_SUBMIT_TODAY, `Ghi nhận ngày ${nxt}  >`, GREEN, 12);
+      button(BTN_REST_TODAY, "Nghỉ Trade Bảo Toàn ($0)", CYAN, 11);
     }
 
     const a = G.page * PAGE_SIZE + 1, b = (G.page + 1) * PAGE_SIZE;
