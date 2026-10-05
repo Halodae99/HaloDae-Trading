@@ -2,13 +2,17 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>HÀNH TRÌNH từ ZERO - HERO / 1000$ - 1000000$ BỞI HALODAE</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #07050f; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; }
+  html, body { margin: 0; height: 100%; background: #07050f; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
   body { display: flex; align-items: center; justify-content: center; }
-  canvas { width: min(100vw, calc(100vh * 1024 / 571)); height: auto; aspect-ratio: 1024 / 571; cursor: default; display: block; }
+  canvas { width: min(100vw, calc(100vh * 1024 / 571)); height: auto; aspect-ratio: 1024 / 571; cursor: default; display: block; touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 </style>
+<!-- Google Firebase SDK (Compat v10 - 0đ vĩnh viễn, đồng bộ PC và iPhone không cần máy chủ) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <canvas id="c" width="1024" height="571"></canvas>
@@ -82,11 +86,12 @@ const MAP_PATH = [
 const AVATAR = R(14, 61, 100, 83), RES = R(783, 58, 234, 30), DAILY = R(816, 92, 200, 86), DAILY_BTN = R(824, 112, 184, 26);
 
 const MODAL = R(32, 18, 960, 535), M_CLOSE = R(944, 24, 36, 26);
-const TAB_DAILY_BTN = R(48, 24, 150, 28);
-const TAB_POCKET_BTN = R(204, 24, 150, 28);
-const TAB_STATS_BTN = R(360, 24, 160, 28);
-const TAB_BACKUP_BTN = R(526, 24, 160, 28);
-const BTN_TIME_INFO = R(692, 24, 246, 28);
+const TAB_DAILY_BTN = R(48, 24, 130, 28);
+const TAB_POCKET_BTN = R(182, 24, 120, 28);
+const TAB_STATS_BTN = R(306, 24, 138, 28);
+const TAB_BACKUP_BTN = R(448, 24, 138, 28);
+const TAB_CLOUD_BTN = R(590, 24, 158, 28);
+const BTN_TIME_INFO = R(752, 24, 186, 28);
 
 const INPUT_BOX_RECT = R(326, 126, 90, 28);
 const BTN_Q_BLOW = R(420, 126, 52, 28);
@@ -129,6 +134,8 @@ const BTN_TO_COINS = R(540, 356, 330, 40);
 
 const BANK_PREV_RECT = R(70, 320, 844, 30);
 const BTN_EXECUTE_CONV = R(210, 358, 564, 38);
+const BTN_CONV_PREV = R(760, 408, 64, 20);
+const BTN_CONV_NEXT = R(832, 408, 64, 20);
 
 // Modal cảnh báo Cháy Tài Khoản (Margin Call Modal)
 const MARGIN_MODAL_RECT = R(Math.floor(W / 2) - 280, Math.floor(H / 2) - 165, 560, 330);
@@ -158,6 +165,27 @@ const BTN_IMPORT_JSON = R(542, 275, 400, 38);
 const BTN_RESET_DATA = R(542, 320, 400, 36);
 const BACKUP_INFO_RECT = R(542, 366, 400, 144);
 
+// Các phần tử trong Tab 4 (Đồng bộ Đám mây xuyên thiết bị PC & iPhone)
+const CLOUD_USER_RECT = R(78, 182, 400, 34);
+const CLOUD_PASS_RECT = R(78, 246, 400, 34);
+const BTN_CLOUD_LOGIN = R(78, 292, 195, 36);
+const BTN_CLOUD_REG = R(283, 292, 195, 36);
+const CLOUD_CARD_RECT = R(78, 338, 400, 118);
+const BTN_CLOUD_LOGOUT = R(78, 464, 400, 32);
+
+const BTN_CLOUD_SAVE = R(542, 178, 400, 40);
+const BTN_CLOUD_LOAD = R(542, 226, 400, 40);
+const BTN_CLOUD_AUTOSYNC = R(542, 274, 400, 32);
+const CLOUD_BOX_RECT = R(542, 314, 400, 194);
+const BTN_PROV_FB = R(-100, -100, 0, 0);   // Gỡ bỏ khỏi UI - Tab đồng bộ 100% Google Firebase
+const BTN_PROV_SRV = R(-100, -100, 0, 0);  // Gỡ bỏ khỏi UI
+const BTN_CONFIG_EDIT = R(556, 456, 182, 38);
+const BTN_CONFIG_TEST = R(746, 456, 182, 38);
+
+const CLOUD_QUICK_BTN = R(-100, -100, 0, 0);
+const FOOTER_BANNER_RECT = R(588, 508, 426, 58);
+const FOOTER_LOGIN_BTN = R(671, 532, 260, 26);
+
 const hit = (r, p) => p.x >= r.x && p.x < r.right && p.y >= r.y && p.y < r.bottom;
 const inflate = (r, dx, dy) => R(r.x - dx / 2, r.y - dy / 2, r.w + dx, r.h + dy);
 
@@ -172,10 +200,11 @@ function getSystemEnergy() {
 
 /* ---------- trạng thái game ---------- */
 const G = {
-  level: 1, xp: 0, coins: 1000, gems: 1000, withdrawnGems: 0,
+  level: 1, xp: 0, coins: 1000, gems: 0, withdrawnGems: 0,
   peakCapital: 1000,
   maxEnergy: 5,
   get energy() { return getSystemEnergy().energy; },
+  set energy(v) {},
   get weekdayInfo() { return getSystemEnergy().label; },
   get bank() { return this.withdrawnGems; },
   set bank(v) { this.withdrawnGems = v; },
@@ -189,10 +218,27 @@ const G = {
   bonus: Array(5).fill(false), claimed: Array(10).fill(false),
   checklist: Array(4).fill(false), confirmReset: false,
   convFrom: 0, convTo: 2,
+  convHistory: [], convPage: 0,
   marginCallOpen: false,
   modal: false, modalTab: 0, page: 0, capital: 1000,
   inputText: "100", inputFocused: false,
   bankInputText: "10", bankInputFocused: false,
+  cloudUser: "",
+  cloudPass: "",
+  cloudToken: "",
+  cloudUid: "",
+  cloudStatus: "Chưa đăng nhập",
+  cloudLastSync: "",
+  cloudProvider: "firebase",
+  cloudAutoSync: true,
+  firebaseConfig: {
+    apiKey: "AIzaSyAYxGUOtw1kXtoU9XMHCclBgJJ1bmjXwx0",
+    authDomain: "halodae-trading.firebaseapp.com",
+    projectId: "halodae-trading",
+    storageBucket: "halodae-trading.appspot.com",
+    messagingSenderId: "",
+    appId: ""
+  },
 };
 const V = { cap: 1000, xp: 0, anim: 0, banner: 0, modalAnim: 0 };
 let particles = [], floats = [], mouse = { x: -1, y: -1 };
@@ -236,6 +282,11 @@ function checkMarginCall() {
   }
   return false;
 }
+function formatNowStr() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
 function recoverMarginCall() {
   if (G.coins <= 0 && G.gems > 0) {
     // Lần cháy 1: Nạp 1,000 Kim Cương sang Vàng (hoặc toàn bộ KC còn lại nếu < 1,000)
@@ -245,6 +296,15 @@ function recoverMarginCall() {
     G.capital = G.coins;
     G.peakCapital = Math.max(START_CAPITAL, G.coins);
     G.marginCallOpen = false;
+    if (!G.convHistory) G.convHistory = [];
+    G.convHistory.unshift({
+      timestamp: Math.floor(Date.now() / 1000),
+      timeStr: formatNowStr(),
+      fromCur: 1, // Kim Cương
+      toCur: 0,   // Vàng
+      amount: amt,
+      vnd: amt * VND_RATE
+    });
     play("buff");
     burst(W / 2, H / 2, GOLD, 35);
     floatText(`Hồi sinh tài khoản! +${amt.toLocaleString("en-US")} Xu Vàng sẵn sàng trade!`, W / 2, H / 2, GREEN);
@@ -257,6 +317,15 @@ function recoverMarginCall() {
     G.capital = G.coins;
     G.peakCapital = Math.max(START_CAPITAL, G.coins);
     G.marginCallOpen = false;
+    if (!G.convHistory) G.convHistory = [];
+    G.convHistory.unshift({
+      timestamp: Math.floor(Date.now() / 1000),
+      timeStr: formatNowStr(),
+      fromCur: 2, // Bank
+      toCur: 0,   // Vàng
+      amount: 1000,
+      vnd: 1000 * VND_RATE
+    });
     play("buff");
     burst(W / 2, H / 2, GOLD, 35);
     floatText(`Rút vốn khẩn cấp $1,000! Bank ghi nhận nợ: $${G.withdrawnGems.toLocaleString("en-US")}`, W / 2, H / 2, GOLD);
@@ -265,7 +334,7 @@ function recoverMarginCall() {
 }
 function nextGoal() { for (const m of MILESTONES) if (m[2] > G.capital) return m[2]; return GOAL; }
 
-const KEYS = ["level", "xp", "coins", "gems", "withdrawnGems", "peakCapital", "energy", "days", "dayProfits", "dayTimestamps", "daysRew", "rules", "rulesRew", "bosses", "bossesRew", "disc", "discRew", "bonus", "claimed", "checklist"];
+const KEYS = ["level", "xp", "coins", "gems", "withdrawnGems", "peakCapital", "days", "dayProfits", "dayTimestamps", "daysRew", "rules", "rulesRew", "bosses", "bossesRew", "disc", "discRew", "bonus", "claimed", "checklist", "convHistory"];
 const SNAKE_TO_CAMEL = {
   withdrawn_gems: "withdrawnGems",
   peak_capital: "peakCapital",
@@ -274,7 +343,8 @@ const SNAKE_TO_CAMEL = {
   days_rewarded: "daysRew",
   rules_rewarded: "rulesRew",
   bosses_rewarded: "bossesRew",
-  disc_rewarded: "discRew"
+  disc_rewarded: "discRew",
+  conv_history: "convHistory"
 };
 function getBackupVal(o, k) {
   if (o[k] !== undefined) return o[k];
@@ -288,45 +358,689 @@ function save() {
   try {
     const o = { version: 4 };
     KEYS.forEach(k => o[k] = G[k]);
-    localStorage.setItem(SAVE_KEY, JSON.stringify(o));
-  } catch (e) {}
+    const str = JSON.stringify(o);
+    localStorage.setItem(SAVE_KEY, str);
+    try { sessionStorage.setItem(SAVE_KEY, str); } catch (_) {}
+    try { localStorage.setItem("zero_hero_halodae_backup", str); } catch (_) {}
+    if (G.cloudAutoSync && G.cloudUser && (G.cloudToken || G.cloudUid)) {
+      triggerAutoCloudSave();
+    }
+  } catch (e) {
+    console.warn("Storage save warning:", e);
+  }
 }
+
+function loadFromData(o) {
+  if (!o || (o.version !== 3 && o.version !== 4)) return false;
+  KEYS.forEach(k => {
+    try {
+      const val = getBackupVal(o, k);
+      if (val === undefined) return;
+      if (k === "convHistory") {
+        if (Array.isArray(val)) {
+          G.convHistory = val.map(item => ({
+            timestamp: Number(item.timestamp) || 0,
+            timeStr: String(item.timeStr || item.time_str || ""),
+            fromCur: Number(item.fromCur !== undefined ? item.fromCur : (item.from_cur !== undefined ? item.from_cur : 0)),
+            toCur: Number(item.toCur !== undefined ? item.toCur : (item.to_cur !== undefined ? item.to_cur : 2)),
+            amount: Number(item.amount) || 0,
+            vnd: Number(item.vnd) || 0
+          }));
+        }
+      } else if (Array.isArray(G[k])) {
+        if (Array.isArray(val)) {
+          const len = Math.min(val.length, G[k].length);
+          for (let i = 0; i < len; i++) {
+            if (k === "dayProfits" || k === "dayTimestamps") G[k][i] = Number(val[i]) || 0;
+            else G[k][i] = Boolean(val[i]);
+          }
+        }
+      } else if (typeof val === "number") {
+        if (k !== "energy") G[k] = val;
+      }
+    } catch (errKey) {
+      console.error("Load key error:", k, errKey);
+    }
+  });
+
+  for (let i = 0; i < 1000; i++) {
+    if (G.days[i] && (!G.dayTimestamps[i] || G.dayTimestamps[i] <= 0)) {
+      G.dayTimestamps[i] = 1;
+    }
+  }
+
+  if (o.version === 3) {
+    let totalPnl = 0;
+    G.days.forEach((d, i) => { if (d) totalPnl += G.dayProfits[i]; });
+    G.coins = Math.max(1000, START_CAPITAL + totalPnl);
+    G.gems = Math.max(0, G.gems);
+  }
+
+  G.capital = G.coins;
+  recalc();
+  checkMarginCall();
+  return true;
+}
+
 function load() {
   try {
     let raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) raw = localStorage.getItem("zero_hero_halodae_v3");
+    if (!raw) {
+      try { raw = sessionStorage.getItem(SAVE_KEY); } catch (_) {}
+    }
+    if (!raw) {
+      try { raw = localStorage.getItem("zero_hero_halodae_backup"); } catch (_) {}
+    }
+    if (!raw) {
+      try { raw = localStorage.getItem("zero_hero_halodae_v3"); } catch (_) {}
+    }
     const o = JSON.parse(raw || "null");
-    if (!o || (o.version !== 3 && o.version !== 4)) return;
-    KEYS.forEach(k => {
-      const val = getBackupVal(o, k);
-      if (val === undefined) return;
-      if (Array.isArray(G[k])) {
-        if (Array.isArray(val) && val.length === G[k].length) {
-          if (k === "dayProfits" || k === "dayTimestamps") G[k] = val.map(Number);
-          else G[k] = val.map(Boolean);
-        }
-      } else if (typeof val === "number") G[k] = val;
-    });
+    if (o) loadFromData(o);
+  } catch (e) {
+    console.error("Load general error:", e);
+  }
+}
 
-    // Nếu dữ liệu cũ đã có ngày hoàn thành mà chưa có timestamp: đóng băng tự động (> 24h)
-    for (let i = 0; i < 1000; i++) {
-      if (G.days[i] && (!G.dayTimestamps[i] || G.dayTimestamps[i] <= 0)) {
-        G.dayTimestamps[i] = 1;
+/* ---------- ĐỒNG BỘ ĐÁM MÂY (GOOGLE FIREBASE ☁️) ---------- */
+function getCloudEmail(username) {
+  const u = String(username || "").trim().toLowerCase();
+  if (u.includes("@")) return u;
+  let s = u.replace(/đ/g, "d").replace(/Đ/g, "d").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const clean = s.replace(/[^a-z0-9_.-]/g, "");
+  return `${clean || "user"}@halodae.trade`;
+}
+
+let fbApp = null, fbAuth = null, fbDb = null;
+function initFirebaseClient() {
+  try {
+    if (typeof firebase === "undefined") return false;
+    if (!G.firebaseConfig || !G.firebaseConfig.apiKey || !G.firebaseConfig.projectId) return false;
+    if (!firebase.apps || !firebase.apps.length) {
+      fbApp = firebase.initializeApp(G.firebaseConfig);
+    } else {
+      fbApp = firebase.app();
+    }
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    return true;
+  } catch (e) {
+    console.warn("Firebase init:", e);
+    return false;
+  }
+}
+
+function loadCloudSettings() {
+  try {
+    const rawCfg = localStorage.getItem("zero_hero_cloud_config");
+    if (rawCfg) {
+      const cfg = JSON.parse(rawCfg);
+      G.cloudProvider = "firebase";
+      if (cfg.autoSync !== undefined) G.cloudAutoSync = cfg.autoSync;
+      if (cfg.firebase) {
+        if (cfg.firebase.apiKey) G.firebaseConfig.apiKey = cfg.firebase.apiKey.trim();
+        if (cfg.firebase.projectId) G.firebaseConfig.projectId = cfg.firebase.projectId.trim();
+        if (cfg.firebase.authDomain) G.firebaseConfig.authDomain = cfg.firebase.authDomain.trim();
+        if (cfg.firebase.storageBucket) G.firebaseConfig.storageBucket = cfg.firebase.storageBucket.trim();
+        if (cfg.firebase.messagingSenderId) G.firebaseConfig.messagingSenderId = cfg.firebase.messagingSenderId.trim();
+        if (cfg.firebase.appId) G.firebaseConfig.appId = cfg.firebase.appId.trim();
       }
     }
+    const rawAuth = localStorage.getItem("zero_hero_cloud_auth");
+    if (rawAuth) {
+      const a = JSON.parse(rawAuth);
+      if (a.username) G.cloudUser = a.username;
+      if (a.password) G.cloudPass = a.password;
+      if (a.token) G.cloudToken = a.token;
+      if (a.uid) G.cloudUid = a.uid;
+      if (a.lastSync) G.cloudLastSync = a.lastSync;
+      if (G.cloudUser) G.cloudStatus = `Đã đăng nhập: ${G.cloudUser}`;
+    }
+    if (typeof fetch !== "undefined") {
+      fetch("cloud_config.json")
+        .then(r => r.ok ? r.json() : null)
+        .then(cfg => {
+          if (cfg && cfg.firebase && cfg.firebase.apiKey) {
+            if (cfg.firebase.apiKey) G.firebaseConfig.apiKey = cfg.firebase.apiKey.trim();
+            if (cfg.firebase.projectId) G.firebaseConfig.projectId = cfg.firebase.projectId.trim();
+            saveCloudSettings();
+          }
+        }).catch(() => {});
+    }
+    initFirebaseClient();
+  } catch (e) {
+    console.warn("Cloud settings load:", e);
+  }
+}
 
-    // Di chuyển từ version 3 lên version 4
-    if (o.version === 3) {
-      let totalPnl = 0;
-      G.days.forEach((d, i) => { if (d) totalPnl += G.dayProfits[i]; });
-      G.coins = Math.max(1000, START_CAPITAL + totalPnl);
-      G.gems = Math.max(1000, G.gems);
+function saveCloudSettings() {
+  try {
+    const cfg = {
+      provider: "firebase",
+      autoSync: G.cloudAutoSync,
+      firebase: G.firebaseConfig
+    };
+    localStorage.setItem("zero_hero_cloud_config", JSON.stringify(cfg));
+    const authData = {
+      username: G.cloudUser,
+      password: G.cloudPass,
+      token: G.cloudToken,
+      uid: G.cloudUid,
+      lastSync: G.cloudLastSync
+    };
+    localStorage.setItem("zero_hero_cloud_auth", JSON.stringify(authData));
+  } catch (e) {
+    console.warn("Cloud settings save:", e);
+  }
+}
+
+let autoSaveTimer = null;
+function triggerAutoCloudSave() {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    cloudSave(true);
+  }, 1200);
+}
+
+async function cloudRegister(username, password) {
+  const u = (username || G.cloudUser || "").trim().toLowerCase();
+  const p = (password || G.cloudPass || "").trim();
+  if (!u || u.length < 3) {
+    play("uncheck");
+    floatText("Tên đăng nhập phải có ít nhất 3 ký tự!", W / 2, 350, RED);
+    return false;
+  }
+  if (!p || p.length < 6) {
+    play("uncheck");
+    floatText("Mật khẩu phải có ít nhất 6 ký tự!", W / 2, 350, RED);
+    return false;
+  }
+
+  const apiKey = (G.firebaseConfig && G.firebaseConfig.apiKey || "").trim();
+  const projectId = (G.firebaseConfig && G.firebaseConfig.projectId || "").trim();
+  if (!apiKey || !projectId) {
+    play("uncheck");
+    G.cloudStatus = "Chưa cấu hình Firebase!";
+    floatText("Chưa cấu hình Firebase! Bấm 'Cấu Hình Firebase' để nhập API Key & Project ID.", W / 2, 350, RED);
+    return false;
+  }
+
+  G.cloudUser = u;
+  G.cloudPass = p;
+  G.cloudStatus = "Đang xử lý đăng ký...";
+
+  const email = getCloudEmail(u);
+
+  try {
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: p, returnSecureToken: true })
+    });
+    const res = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const errCode = res.error?.message || "";
+      let msg = `Lỗi đăng ký Firebase: ${errCode}`;
+      if (errCode === "EMAIL_EXISTS") {
+        msg = `Tài khoản '${u}' đã tồn tại! Vui lòng bấm Đăng Nhập.`;
+      } else if (errCode.includes("WEAK_PASSWORD")) {
+        msg = "Mật khẩu quá yếu! Vui lòng dùng mật khẩu tối thiểu 6 ký tự.";
+      } else if (errCode === "OPERATION_NOT_ALLOWED") {
+        msg = "Chưa bật Email/Password trên Firebase Authentication! Vào Firebase Console -> Authentication -> Sign-in method -> Bật Email/Password.";
+      } else if (errCode === "API_KEY_INVALID" || errCode === "INVALID_KEY") {
+        msg = "API Key Firebase không hợp lệ! Vui lòng kiểm tra lại cấu hình.";
+      }
+      G.cloudStatus = "Lỗi đăng ký";
+      play("uncheck");
+      floatText(msg, W / 2, 350, RED);
+      return false;
     }
 
-    G.capital = G.coins;
-    recalc();
-    checkMarginCall();
-  } catch (e) {}
+    G.cloudUid = res.localId || "";
+    G.cloudToken = res.idToken || "";
+    G.cloudStatus = `Đã đăng nhập: ${u}`;
+    G.cloudLastSync = formatNowStr();
+    saveCloudSettings();
+    play("level");
+    burst(W / 2, 350, GREEN, 35);
+    floatText(`Đăng ký Firebase thành công! Chào mừng ${u}!`, W / 2, 350, GREEN);
+    if (initFirebaseClient() && fbAuth) {
+      try { fbAuth.signInWithEmailAndPassword(email, p).catch(() => {}); } catch (_) {}
+    }
+    await cloudSave(true);
+    return true;
+  } catch (err) {
+    if (initFirebaseClient() && fbAuth) {
+      try {
+        const cred = await fbAuth.createUserWithEmailAndPassword(email, p);
+        G.cloudUid = cred.user.uid;
+        G.cloudToken = (await cred.user.getIdToken()) || G.cloudUid;
+        G.cloudStatus = `Đã đăng nhập: ${u}`;
+        G.cloudLastSync = formatNowStr();
+        saveCloudSettings();
+        play("level");
+        burst(W / 2, 350, GREEN, 35);
+        floatText(`Đăng ký Firebase thành công! Chào mừng ${u}!`, W / 2, 350, GREEN);
+        await cloudSave(true);
+        return true;
+      } catch (sdkErr) {
+        console.error("Firebase SDK reg err:", sdkErr);
+      }
+    }
+    console.error("Firebase reg error:", err);
+    G.cloudStatus = "Lỗi kết nối";
+    play("uncheck");
+    floatText(`Lỗi kết nối Google Firebase: ${err.message || err}`, W / 2, 350, RED);
+    return false;
+  }
+}
+
+async function cloudLogin(username, password) {
+  const u = (username || G.cloudUser || "").trim().toLowerCase();
+  const p = (password || G.cloudPass || "").trim();
+  if (!u || !p) {
+    play("uncheck");
+    floatText("Vui lòng nhập Tên đăng nhập và Mật khẩu!", W / 2, 350, RED);
+    return false;
+  }
+
+  const apiKey = (G.firebaseConfig && G.firebaseConfig.apiKey || "").trim();
+  const projectId = (G.firebaseConfig && G.firebaseConfig.projectId || "").trim();
+  if (!apiKey || !projectId) {
+    play("uncheck");
+    G.cloudStatus = "Chưa cấu hình Firebase!";
+    floatText("Chưa cấu hình Firebase! Bấm 'Cấu Hình Firebase' để nhập API Key & Project ID.", W / 2, 350, RED);
+    return false;
+  }
+
+  G.cloudUser = u;
+  G.cloudPass = p;
+  G.cloudStatus = "Đang đăng nhập...";
+
+  const email = getCloudEmail(u);
+
+  try {
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: p, returnSecureToken: true })
+    });
+    const res = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const errCode = res.error?.message || "";
+      let msg = "Sai tên đăng nhập hoặc mật khẩu!";
+      if (errCode === "EMAIL_NOT_FOUND") {
+        msg = `Tài khoản '${u}' chưa tồn tại! Vui lòng bấm Đăng Ký.`;
+      } else if (errCode === "INVALID_PASSWORD" || errCode === "INVALID_LOGIN_CREDENTIALS") {
+        msg = "Sai mật khẩu đăng nhập! Vui lòng kiểm tra lại.";
+      } else if (errCode === "USER_DISABLED") {
+        msg = "Tài khoản Firebase đã bị vô hiệu hóa.";
+      } else if (errCode === "API_KEY_INVALID" || errCode === "INVALID_KEY") {
+        msg = "API Key Firebase không hợp lệ! Vui lòng kiểm tra lại cấu hình.";
+      }
+      G.cloudStatus = "Sai thông tin đăng nhập";
+      play("uncheck");
+      floatText(msg, W / 2, 350, RED);
+      return false;
+    }
+
+    G.cloudUid = res.localId || "";
+    G.cloudToken = res.idToken || "";
+    G.cloudStatus = `Đã đăng nhập: ${u}`;
+    saveCloudSettings();
+    play("coin");
+    burst(W / 2, 350, GREEN, 30);
+    floatText("Đăng nhập Firebase thành công! Đang đồng bộ...", W / 2, 350, GREEN);
+    if (initFirebaseClient() && fbAuth) {
+      try { fbAuth.signInWithEmailAndPassword(email, p).catch(() => {}); } catch (_) {}
+    }
+    await cloudLoad(true);
+    return true;
+  } catch (err) {
+    if (initFirebaseClient() && fbAuth) {
+      try {
+        const cred = await fbAuth.signInWithEmailAndPassword(email, p);
+        G.cloudUid = cred.user.uid;
+        G.cloudToken = (await cred.user.getIdToken()) || G.cloudUid;
+        G.cloudStatus = `Đã đăng nhập: ${u}`;
+        saveCloudSettings();
+        play("coin");
+        burst(W / 2, 350, GREEN, 30);
+        floatText("Đăng nhập Firebase thành công! Đang đồng bộ...", W / 2, 350, GREEN);
+        await cloudLoad(true);
+        return true;
+      } catch (sdkErr) {
+        console.error("Firebase SDK login err:", sdkErr);
+      }
+    }
+    console.error("Firebase login error:", err);
+    G.cloudStatus = "Lỗi kết nối";
+    play("uncheck");
+    floatText(`Lỗi kết nối Google Firebase: ${err.message || err}`, W / 2, 350, RED);
+    return false;
+  }
+}
+
+async function cloudSave(isSilent = false) {
+  if (!G.cloudUser) {
+    if (!isSilent) {
+      play("uncheck");
+      floatText("Vui lòng đăng nhập tài khoản Firebase trước khi lưu!", W / 2, 350, RED);
+    }
+    return false;
+  }
+
+  const apiKey = (G.firebaseConfig && G.firebaseConfig.apiKey || "").trim();
+  const projectId = (G.firebaseConfig && G.firebaseConfig.projectId || "").trim();
+  if (!apiKey || !projectId) {
+    if (!isSilent) {
+      play("uncheck");
+      floatText("Chưa cấu hình Firebase! Bấm 'Cấu Hình Firebase' để nhập.", W / 2, 350, RED);
+    }
+    return false;
+  }
+
+  if (!G.cloudUid || !G.cloudToken) {
+    if (!isSilent) {
+      play("uncheck");
+      floatText("Chưa có phiên đăng nhập Firebase! Vui lòng đăng nhập lại.", W / 2, 350, RED);
+    }
+    return false;
+  }
+
+  const o = { version: 4 };
+  KEYS.forEach(k => o[k] = G[k]);
+  const nowStr = formatNowStr();
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/users/${encodeURIComponent(G.cloudUid)}`;
+    const docBody = {
+      fields: {
+        payload: { stringValue: JSON.stringify(o) },
+        username: { stringValue: G.cloudUser },
+        updatedAt: { stringValue: nowStr }
+      }
+    };
+    const resp = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${G.cloudToken}`
+      },
+      body: JSON.stringify(docBody)
+    });
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      const errMsg = errData.error?.message || "";
+      const errStatus = errData.error?.status || "";
+      if (errStatus === "PERMISSION_DENIED" || errMsg.includes("permission") || resp.status === 403) {
+        if (!isSilent) {
+          play("uncheck");
+          floatText("Chưa mở quyền Firestore! Vào Firebase Console -> Firestore -> Rules -> đổi 'allow read, write: if true;' rồi bấm Publish.", W / 2, 350, RED);
+        }
+        return false;
+      }
+      if (resp.status === 401 && G.cloudPass) {
+        const reLogged = await cloudLogin(G.cloudUser, G.cloudPass);
+        if (reLogged) return await cloudSave(isSilent);
+      }
+      throw new Error(errMsg || `HTTP ${resp.status}`);
+    }
+
+    G.cloudLastSync = nowStr;
+    saveCloudSettings();
+    if (!isSilent) {
+      play("coin");
+      burst(W / 2, 350, GREEN, 25);
+      floatText(`ĐÃ LƯU TIẾN TRÌNH LÊN ĐÁM MÂY FIREBASE! (${nowStr})`, W / 2, 350, GREEN);
+    }
+    return true;
+  } catch (err) {
+    if (initFirebaseClient() && fbDb && G.cloudUid) {
+      try {
+        await fbDb.collection("users").doc(G.cloudUid).set({
+          payload: JSON.stringify(o),
+          username: G.cloudUser,
+          updatedAt: nowStr
+        });
+        G.cloudLastSync = nowStr;
+        saveCloudSettings();
+        if (!isSilent) {
+          play("coin");
+          burst(W / 2, 350, GREEN, 25);
+          floatText(`ĐÃ LƯU TIẾN TRÌNH LÊN ĐÁM MÂY FIREBASE! (${nowStr})`, W / 2, 350, GREEN);
+        }
+        return true;
+      } catch (sdkErr) {
+        console.error("Firebase SDK save err:", sdkErr);
+      }
+    }
+    console.error("Firebase save error:", err);
+    if (!isSilent) {
+      play("uncheck");
+      let msg = `Lỗi lưu Firebase: ${err.message || err}`;
+      if (err.message && err.message.includes("permission")) {
+        msg = "Chưa mở quyền Firestore! Vào Firebase Console -> Firestore -> Rules -> đổi 'allow read, write: if true;' rồi bấm Publish.";
+      }
+      floatText(msg, W / 2, 350, RED);
+    }
+    return false;
+  }
+}
+
+async function cloudLoad(isSilent = false) {
+  if (!G.cloudUser) {
+    if (!isSilent) {
+      play("uncheck");
+      floatText("Vui lòng đăng nhập tài khoản Firebase trước khi tải!", W / 2, 350, RED);
+    }
+    return false;
+  }
+
+  const apiKey = (G.firebaseConfig && G.firebaseConfig.apiKey || "").trim();
+  const projectId = (G.firebaseConfig && G.firebaseConfig.projectId || "").trim();
+  if (!apiKey || !projectId) {
+    if (!isSilent) {
+      play("uncheck");
+      floatText("Chưa cấu hình Firebase! Bấm 'Cấu Hình Firebase' để nhập.", W / 2, 350, RED);
+    }
+    return false;
+  }
+
+  if (!G.cloudUid || !G.cloudToken) {
+    if (!isSilent) {
+      play("uncheck");
+      floatText("Chưa có phiên đăng nhập Firebase! Vui lòng đăng nhập lại.", W / 2, 350, RED);
+    }
+    return false;
+  }
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/users/${encodeURIComponent(G.cloudUid)}`;
+    const resp = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${G.cloudToken}`
+      }
+    });
+
+    if (resp.status === 404) {
+      if (!isSilent) {
+        play("uncheck");
+        floatText(`Chưa có bản lưu nào trên Đám Mây Firebase cho tài khoản '${G.cloudUser}'!`, W / 2, 350, GOLD);
+      }
+      return false;
+    }
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      const errMsg = errData.error?.message || "";
+      const errStatus = errData.error?.status || "";
+      if (errStatus === "PERMISSION_DENIED" || errMsg.includes("permission") || resp.status === 403) {
+        if (!isSilent) {
+          play("uncheck");
+          floatText("Chưa mở quyền Firestore! Vào Firebase Console -> Firestore -> Rules -> đổi 'allow read, write: if true;' rồi bấm Publish.", W / 2, 350, RED);
+        }
+        return false;
+      }
+      if (resp.status === 401 && G.cloudPass) {
+        const reLogged = await cloudLogin(G.cloudUser, G.cloudPass);
+        if (reLogged) return await cloudLoad(isSilent);
+      }
+      throw new Error(errMsg || `HTTP ${resp.status}`);
+    }
+
+    const doc = await resp.json();
+    const rawPayload = doc.fields?.payload?.stringValue;
+    if (!rawPayload) {
+      if (!isSilent) {
+        play("uncheck");
+        floatText(`Bản lưu trên Firebase trống cho tài khoản '${G.cloudUser}'!`, W / 2, 350, GOLD);
+      }
+      return false;
+    }
+
+    const data = JSON.parse(rawPayload);
+    if (loadFromData(data)) {
+      save();
+      G.cloudLastSync = doc.fields?.updatedAt?.stringValue || formatNowStr();
+      saveCloudSettings();
+      play("level");
+      burst(W / 2, 350, GOLD, 35);
+      floatText(`ĐÃ ĐỒNG BỘ TIẾN TRÌNH TỪ FIREBASE! (${G.cloudLastSync})`, W / 2, 350, GOLD);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    if (initFirebaseClient() && fbDb && G.cloudUid) {
+      try {
+        const snap = await fbDb.collection("users").doc(G.cloudUid).get();
+        if (!snap.exists) {
+          if (!isSilent) {
+            play("uncheck");
+            floatText(`Chưa có bản lưu nào trên Đám Mây Firebase cho tài khoản '${G.cloudUser}'!`, W / 2, 350, GOLD);
+          }
+          return false;
+        }
+        const data = JSON.parse(snap.data().payload);
+        if (loadFromData(data)) {
+          save();
+          G.cloudLastSync = snap.data().updatedAt || formatNowStr();
+          saveCloudSettings();
+          play("level");
+          burst(W / 2, 350, GOLD, 35);
+          floatText(`ĐÃ ĐỒNG BỘ TIẾN TRÌNH TỪ FIREBASE! (${G.cloudLastSync})`, W / 2, 350, GOLD);
+          return true;
+        }
+      } catch (sdkErr) {
+        console.error("Firebase SDK load err:", sdkErr);
+      }
+    }
+    console.error("Firebase load error:", err);
+    if (!isSilent) {
+      play("uncheck");
+      let msg = `Lỗi tải Firebase: ${err.message || err}`;
+      if (err.message && err.message.includes("permission")) {
+        msg = "Chưa mở quyền Firestore! Vào Firebase Console -> Firestore -> Rules -> đổi 'allow read, write: if true;' rồi bấm Publish.";
+      }
+      floatText(msg, W / 2, 350, RED);
+    }
+    return false;
+  }
+}
+
+function cloudLogout() {
+  G.cloudUser = "";
+  G.cloudPass = "";
+  G.cloudToken = "";
+  G.cloudUid = "";
+  G.cloudStatus = "Chưa đăng nhập";
+  localStorage.removeItem("zero_hero_cloud_auth");
+  if (fbAuth) try { fbAuth.signOut(); } catch (_) {}
+  play("uncheck");
+  floatText("Đã đăng xuất tài khoản Firebase!", W / 2, 350, CYAN);
+}
+
+function promptFirebaseConfig() {
+  const currentStr = JSON.stringify(G.firebaseConfig, null, 2);
+  const val = prompt(
+    "CẤU HÌNH GOOGLE FIREBASE:\n\n" +
+    "Dán toàn bộ đoạn JSON / mã config từ Firebase Console, hoặc nhập trực tiếp:\n" +
+    "- Project ID (VD: halodae-trading)\n" +
+    "- Web API Key (VD: AIzaSy...)",
+    currentStr
+  );
+  if (val !== null && val.trim()) {
+    const trimmed = val.trim();
+    try {
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.apiKey) G.firebaseConfig.apiKey = parsed.apiKey.trim();
+        if (parsed.projectId) G.firebaseConfig.projectId = parsed.projectId.trim();
+        if (parsed.authDomain) G.firebaseConfig.authDomain = parsed.authDomain.trim();
+        if (parsed.storageBucket) G.firebaseConfig.storageBucket = parsed.storageBucket.trim();
+        if (parsed.messagingSenderId) G.firebaseConfig.messagingSenderId = parsed.messagingSenderId.trim();
+        if (parsed.appId) G.firebaseConfig.appId = parsed.appId.trim();
+      } else {
+        const keyMatch = trimmed.match(/apiKey["']?\s*:\s*["']([^"']+)["']/i);
+        const projMatch = trimmed.match(/projectId["']?\s*:\s*["']([^"']+)["']/i);
+        if (keyMatch) G.firebaseConfig.apiKey = keyMatch[1].trim();
+        if (projMatch) G.firebaseConfig.projectId = projMatch[1].trim();
+        if (!keyMatch && !projMatch) {
+          if (trimmed.startsWith("AIza")) {
+            G.firebaseConfig.apiKey = trimmed;
+          } else {
+            G.firebaseConfig.projectId = trimmed;
+          }
+        }
+      }
+      saveCloudSettings();
+      initFirebaseClient();
+      play("buff");
+      floatText("Đã cập nhật cấu hình Google Firebase thành công!", W / 2, 350, GREEN);
+    } catch (e) {
+      play("uncheck");
+      floatText("Cấu hình không hợp lệ! Vui lòng kiểm tra lại JSON.", W / 2, 350, RED);
+    }
+  }
+}
+
+async function cloudTestConnection() {
+  floatText("Đang kiểm tra kết nối Google Firebase...", W / 2, 350, CYAN);
+  const apiKey = (G.firebaseConfig && G.firebaseConfig.apiKey || "").trim();
+  const projectId = (G.firebaseConfig && G.firebaseConfig.projectId || "").trim();
+  if (!apiKey) {
+    play("uncheck");
+    floatText("Chưa nhập API Key Firebase! Bấm 'Cấu Hình Firebase' để nhập.", W / 2, 350, RED);
+    return false;
+  }
+  if (!projectId) {
+    play("uncheck");
+    floatText("Chưa nhập Project ID Firebase! Bấm 'Cấu Hình Firebase' để nhập.", W / 2, 350, RED);
+    return false;
+  }
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.error && (data.error.message === "API_KEY_INVALID" || data.error.message === "INVALID_KEY")) {
+      play("uncheck");
+      floatText("API Key Firebase không hợp lệ! Vui lòng kiểm tra lại cấu hình.", W / 2, 350, RED);
+      return false;
+    }
+    play("buff");
+    floatText(`Kết nối Google Firebase OK (Dự án: ${projectId})!`, W / 2, 350, GREEN);
+    return true;
+  } catch (e) {
+    play("uncheck");
+    floatText(`Lỗi kết nối Firebase: ${e.message}`, W / 2, 350, RED);
+    return false;
+  }
 }
 
 /* ---------- âm thanh (WebAudio) ---------- */
@@ -784,6 +1498,16 @@ function executeConversion() {
 
   recalc();
   const vnd = amt * VND_RATE;
+  if (!G.convHistory) G.convHistory = [];
+  G.convHistory.unshift({
+    timestamp: Math.floor(Date.now() / 1000),
+    timeStr: formatNowStr(),
+    fromCur: G.convFrom,
+    toCur: G.convTo,
+    amount: amt,
+    vnd: vnd
+  });
+  G.convPage = 0;
   play("coin");
   floatText(`Đã chuyển ${amt.toLocaleString("en-US")} ${fromName} -> ${toName} (~ ${vnd.toLocaleString("en-US")} VNĐ)!`, W / 2, 350, GREEN);
   burst(W / 2, 350, G.convTo !== 0 ? GREEN : GOLD, 25);
@@ -896,6 +1620,14 @@ function exportCsv() {
     if (G.days[i]) runningCap += pnl;
     csv += `${i + 1},${defaultTargetForDay(i + 1)},${G.days[i] ? pnl : 0},${runningCap},${status}\n`;
   }
+  if (G.convHistory && G.convHistory.length > 0) {
+    csv += "\n\n--- NHẬT KÝ CHUYỂN ĐỔI TIỀN ---\nSTT,Ngày Giờ Chuyển,Từ Loại Tiền,Sang Loại Tiền,Số Lượng,Quy Đổi VNĐ\n";
+    G.convHistory.forEach((c, idx) => {
+      const fn = CURRENCY_NAMES[c.fromCur] || "Vàng";
+      const tn = CURRENCY_NAMES[c.toCur] || "Bank";
+      csv += `${idx + 1},${c.timeStr},${fn},${tn},${c.amount},${c.vnd}\n`;
+    });
+  }
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -940,14 +1672,34 @@ function importBackupJson() {
           return;
         }
         KEYS.forEach(k => {
-          const val = getBackupVal(o, k);
-          if (val === undefined) return;
-          if (Array.isArray(G[k])) {
-            if (Array.isArray(val) && val.length === G[k].length) {
-              if (k === "dayProfits" || k === "dayTimestamps") G[k] = val.map(Number);
-              else G[k] = val.map(Boolean);
+          try {
+            const val = getBackupVal(o, k);
+            if (val === undefined) return;
+            if (k === "convHistory") {
+              if (Array.isArray(val)) {
+                G.convHistory = val.map(item => ({
+                  timestamp: Number(item.timestamp) || 0,
+                  timeStr: String(item.timeStr || item.time_str || ""),
+                  fromCur: Number(item.fromCur !== undefined ? item.fromCur : (item.from_cur !== undefined ? item.from_cur : 0)),
+                  toCur: Number(item.toCur !== undefined ? item.toCur : (item.to_cur !== undefined ? item.to_cur : 2)),
+                  amount: Number(item.amount) || 0,
+                  vnd: Number(item.vnd) || 0
+                }));
+              }
+            } else if (Array.isArray(G[k])) {
+              if (Array.isArray(val)) {
+                const len = Math.min(val.length, G[k].length);
+                for (let i = 0; i < len; i++) {
+                  if (k === "dayProfits" || k === "dayTimestamps") G[k][i] = Number(val[i]) || 0;
+                  else G[k][i] = Boolean(val[i]);
+                }
+              }
+            } else if (typeof val === "number") {
+              if (k !== "energy") G[k] = val;
             }
-          } else if (typeof val === "number") G[k] = val;
+          } catch (errKey) {
+            console.error("Import key error:", k, errKey);
+          }
         });
 
         for (let i = 0; i < 1000; i++) {
@@ -960,7 +1712,7 @@ function importBackupJson() {
           let totalPnl = 0;
           G.days.forEach((d, i) => { if (d) totalPnl += G.dayProfits[i]; });
           G.coins = Math.max(1000, START_CAPITAL + totalPnl);
-          G.gems = Math.max(1000, G.gems);
+          G.gems = Math.max(0, G.gems);
         }
 
         G.capital = G.coins;
@@ -990,7 +1742,7 @@ function resetData() {
   }
   G.confirmReset = false;
   G.level = 1; G.xp = 0;
-  G.coins = 1000; G.gems = 1000; G.withdrawnGems = 0;
+  G.coins = 1000; G.gems = 0; G.withdrawnGems = 0;
   G.days = Array(1000).fill(false);
   G.dayProfits = Array(1000).fill(0).map((_, i) => defaultTargetForDay(i + 1));
   G.daysRew = Array(1000).fill(false);
@@ -1000,6 +1752,8 @@ function resetData() {
   G.disc = Array(4).fill(false); G.discRew = Array(4).fill(false);
   G.bonus = Array(5).fill(false); G.claimed = Array(10).fill(false);
   G.checklist = Array(4).fill(false);
+  G.convHistory = [];
+  G.convPage = 0;
   G.capital = 1000;
   G.peakCapital = 1000;
   V.cap = 1000; V.xp = 0;
@@ -1078,6 +1832,7 @@ function click(p) {
     if (hit(TAB_POCKET_BTN, p)) { burstRipple(p.x, p.y, CYAN, 26); G.modalTab = 1; play("check"); return; }
     if (hit(TAB_STATS_BTN, p)) { burstRipple(p.x, p.y, GOLD, 26); G.modalTab = 2; play("check"); return; }
     if (hit(TAB_BACKUP_BTN, p)) { burstRipple(p.x, p.y, "#b46eff", 26); G.modalTab = 3; play("check"); return; }
+    if (hit(TAB_CLOUD_BTN, p)) { burstRipple(p.x, p.y, CYAN, 26); G.modalTab = 4; play("check"); return; }
     if (hit(BTN_TIME_INFO, p)) { burstRipple(p.x, p.y, CYAN, 26); showTimeInfo(); return; }
 
     if (G.modalTab === 0) {
@@ -1186,6 +1941,14 @@ function click(p) {
       }
       else if (hit(BTN_B_CLR, p)) { burstRipple(p.x, p.y, RED, 20); G.bankInputText = "0"; play("check"); }
       else if (hit(BTN_EXECUTE_CONV, p)) { burstRipple(p.x, p.y, CYAN, 30); executeConversion(); }
+      else if (hit(BTN_CONV_PREV, p)) {
+        burstRipple(p.x, p.y, CYAN, 18);
+        if (G.convPage > 0) { G.convPage--; play("check"); }
+      } else if (hit(BTN_CONV_NEXT, p)) {
+        burstRipple(p.x, p.y, CYAN, 18);
+        const maxP = Math.max(0, Math.ceil((G.convHistory ? G.convHistory.length : 1) / 3) - 1);
+        if (G.convPage < maxP) { G.convPage++; play("check"); }
+      }
     } else if (G.modalTab === 3) {
       for (let i = 0; i < 4; i++) {
         if (hit(CHK_ROWS[i], p)) { burstRipple(p.x, p.y, GREEN, 24); toggleChecklist(i, p); return; }
@@ -1194,12 +1957,104 @@ function click(p) {
       else if (hit(BTN_EXPORT_JSON, p)) { burstRipple(p.x, p.y, CYAN, 28); exportBackupJson(); }
       else if (hit(BTN_IMPORT_JSON, p)) { burstRipple(p.x, p.y, "#b482ff", 28); importBackupJson(); }
       else if (hit(BTN_RESET_DATA, p)) { burstRipple(p.x, p.y, RED, 28); resetData(); }
+    } else if (G.modalTab === 4) {
+      if (hit(CLOUD_USER_RECT, p)) {
+        burstRipple(p.x, p.y, CYAN, 20);
+        if (G.cloudUserFocused) {
+          const val = prompt("Nhập Tên Đăng Nhập (Username):", G.cloudUser || "");
+          if (val !== null) {
+            G.cloudUser = val.trim().toLowerCase();
+            saveCloudSettings();
+          }
+        }
+        G.cloudUserFocused = true;
+        G.cloudPassFocused = false;
+        return;
+      }
+      if (hit(CLOUD_PASS_RECT, p)) {
+        burstRipple(p.x, p.y, CYAN, 20);
+        if (G.cloudPassFocused) {
+          const val = prompt("Nhập Mật Khẩu (Password - tối thiểu 6 ký tự):", G.cloudPass || "");
+          if (val !== null) {
+            G.cloudPass = val.trim();
+            saveCloudSettings();
+          }
+        }
+        G.cloudPassFocused = true;
+        G.cloudUserFocused = false;
+        return;
+      }
+      G.cloudUserFocused = false;
+      G.cloudPassFocused = false;
+
+      if (hit(BTN_CLOUD_LOGIN, p)) {
+        burstRipple(p.x, p.y, GREEN, 28);
+        cloudLogin(G.cloudUser, G.cloudPass);
+        return;
+      }
+      if (hit(BTN_CLOUD_REG, p)) {
+        burstRipple(p.x, p.y, GOLD, 28);
+        cloudRegister(G.cloudUser, G.cloudPass);
+        return;
+      }
+      if (hit(BTN_CLOUD_LOGOUT, p)) {
+        burstRipple(p.x, p.y, RED, 24);
+        const isLogged = !!(G.cloudToken || G.cloudUid || (G.cloudStatus && G.cloudStatus.includes("Đã") && G.cloudUser));
+        if (isLogged) {
+          cloudLogout();
+        } else {
+          play("uncheck");
+          floatText("Bạn chưa đăng nhập!", W / 2, 350, "#ff7878");
+        }
+        return;
+      }
+      if (hit(BTN_CLOUD_SAVE, p)) {
+        burstRipple(p.x, p.y, GREEN, 30);
+        cloudSave();
+        return;
+      }
+      if (hit(BTN_CLOUD_LOAD, p)) {
+        burstRipple(p.x, p.y, GOLD, 30);
+        cloudLoad();
+        return;
+      }
+      if (hit(BTN_CLOUD_AUTOSYNC, p)) {
+        burstRipple(p.x, p.y, CYAN, 22);
+        G.cloudAutoSync = !G.cloudAutoSync;
+        saveCloudSettings();
+        play("check");
+        floatText("Tự động đồng bộ khi lưu: " + (G.cloudAutoSync ? "BẬT" : "TẮT"), W / 2, 350, CYAN);
+        return;
+      }
+      if (hit(BTN_CONFIG_EDIT, p)) {
+        burstRipple(p.x, p.y, "#b482ff", 24);
+        promptFirebaseConfig();
+        return;
+      }
+      if (hit(BTN_CONFIG_TEST, p)) {
+        burstRipple(p.x, p.y, CYAN, 24);
+        cloudTestConnection();
+        return;
+      }
     }
     return;
   }
 
   if (hit(RES, p)) { burstRipple(p.x, p.y, CYAN, 26); showTimeInfo(); return; }
   if (hit(DAILY, p)) { burstRipple(p.x, p.y, GREEN, 28); play("check"); G.modal = true; syncInputWithNextDay(); return; }
+  if (hit(FOOTER_BANNER_RECT, p)) {
+    const isLogged = !!(G.cloudToken || G.cloudUid || (G.cloudStatus && G.cloudStatus.includes("Đã") && G.cloudUser));
+    burstRipple(p.x, p.y, isLogged ? GREEN : CYAN, 32);
+    play("check");
+    G.modal = true;
+    G.modalTab = 4;
+    if (!isLogged) {
+      G.cloudUserFocused = true;
+      G.cloudPassFocused = false;
+      floatText("Nhập tài khoản & mật khẩu Firebase!", p.x, p.y - 20, CYAN);
+    }
+    return;
+  }
   if (hit(AVATAR, p)) { burstRipple(p.x, p.y, GOLD, 28); floatText("Trader HaloDae - " + traderTitle(), AVATAR.cx, AVATAR.y, GOLD); return; }
   for (let i = 0; i < 10; i++) if (hit(mileRow(i), p) || hit(nodeRect(i), p)) { burstRipple(p.x, p.y, GOLD, 28); claimMilestone(i, p.x, p.y); return; }
   for (let i = 0; i < 4; i++) if (hit(ruleRow(i), p)) { burstRipple(p.x, p.y, GREEN, 24); toggleRule(i, p.x, p.y); return; }
@@ -1211,7 +2066,7 @@ function click(p) {
 function interactive(p) {
   if (G.marginCallOpen) return hit(BTN_MARGIN_ACTION, p);
   if (G.modal) {
-    if (hit(M_CLOSE, p) || hit(TAB_DAILY_BTN, p) || hit(TAB_POCKET_BTN, p) || hit(TAB_STATS_BTN, p) || hit(TAB_BACKUP_BTN, p) || hit(BTN_TIME_INFO, p)) return true;
+    if (hit(M_CLOSE, p) || hit(TAB_DAILY_BTN, p) || hit(TAB_POCKET_BTN, p) || hit(TAB_STATS_BTN, p) || hit(TAB_BACKUP_BTN, p) || hit(TAB_CLOUD_BTN, p) || hit(BTN_TIME_INFO, p)) return true;
     if (G.modalTab === 0) {
       return [INPUT_BOX_RECT, BTN_SUBMIT_TODAY, BTN_REST_TODAY, BTN_Q_BLOW, BTN_Q_P50, BTN_Q_P100, BTN_Q_P250, M_PREV, M_NEXT].some(r => hit(r, p)) ||
         Array.from({ length: PAGE_SIZE }, (_, k) => dayCell(k)).some(r => hit(r, p));
@@ -1219,13 +2074,17 @@ function interactive(p) {
       return [BTN_CONV_FROM_0, BTN_CONV_FROM_1, BTN_CONV_FROM_2, BTN_CONV_SWAP,
               BTN_CONV_TO_0, BTN_CONV_TO_1, BTN_CONV_TO_2,
               BANK_INP_RECT, BTN_B_10, BTN_B_50, BTN_B_100, BTN_B_500, BTN_B_ALL, BTN_B_CLR,
-              BTN_EXECUTE_CONV].some(r => hit(r, p));
+              BTN_EXECUTE_CONV, BTN_CONV_PREV, BTN_CONV_NEXT].some(r => hit(r, p));
     } else if (G.modalTab === 3) {
       return [...CHK_ROWS, BTN_EXPORT_CSV, BTN_EXPORT_JSON, BTN_IMPORT_JSON, BTN_RESET_DATA].some(r => hit(r, p));
+    } else if (G.modalTab === 4) {
+      return [CLOUD_USER_RECT, CLOUD_PASS_RECT, BTN_CLOUD_LOGIN, BTN_CLOUD_REG, BTN_CLOUD_LOGOUT,
+              BTN_CLOUD_SAVE, BTN_CLOUD_LOAD, BTN_CLOUD_AUTOSYNC,
+              BTN_CONFIG_EDIT, BTN_CONFIG_TEST].some(r => hit(r, p));
     }
     return false;
   }
-  if (hit(DAILY, p) || hit(AVATAR, p) || hit(RES, p)) return true;
+  if (hit(DAILY, p) || hit(AVATAR, p) || hit(RES, p) || hit(FOOTER_BANNER_RECT, p) || hit(FOOTER_LOGIN_BTN, p)) return true;
   for (let i = 0; i < 10; i++) if (hit(mileRow(i), p) || hit(nodeRect(i), p)) return true;
   for (let i = 0; i < 4; i++) if (hit(ruleRow(i), p) || hit(discRow(i), p)) return true;
   for (let i = 0; i < 3; i++) if (hit(bossRow(i), p)) return true;
@@ -1236,7 +2095,13 @@ function interactive(p) {
 function tooltip(p) {
   if (G.modal) return null;
   const f = n => n.toLocaleString("en-US");
+  const isLogged = !!(G.cloudToken || G.cloudUid || (G.cloudStatus && G.cloudStatus.includes("Đã") && G.cloudUser));
   if (hit(RES, p)) return "Năng lượng: " + getSystemEnergy().label + " (tự động theo giờ máy: T2-T6)";
+  if (hit(FOOTER_BANNER_RECT, p)) {
+    const st = isLogged ? "ĐÃ ĐỒNG BỘ ONLINE" : "CHƯA ĐĂNG NHẬP";
+    const uStr = G.cloudUser ? ` (${G.cloudUser.toUpperCase()})` : "";
+    return `Hành Trình Zero-Hero • Đồng bộ Firebase iPhone 4G${uStr} - ${st}: Bấm để đăng nhập / đồng bộ`;
+  }
   if (hit(DAILY, p)) return "Bấm để mở nhật ký 1000 ngày & Rút tiền về túi";
   for (let i = 0; i < 10; i++) if (hit(mileRow(i), p) || hit(nodeRect(i), p)) {
     const m = MILESTONES[i];
@@ -1502,6 +2367,71 @@ function drawBonus() {
     }
   }
 }
+function drawFooterBanner(mouse, pulse) {
+  const r = FOOTER_BANNER_RECT;
+  const hover = hit(r, mouse);
+  const isLogged = !!(G.cloudToken || G.cloudUid || (G.cloudStatus && G.cloudStatus.includes("Đã") && G.cloudUser));
+
+  // Nền panel che hoàn toàn text cũ
+  ctx.save();
+  if (isLogged) {
+    drawGlowRect(r, GREEN, 0.12 + 0.08 * pulse, 8, 4);
+  } else if (hover) {
+    drawGlowRect(r, CYAN, 0.14 + 0.1 * pulse, 8, 4);
+  } else {
+    drawGlowRect(r, "#8c5ae6", 0.08, 8, 3);
+  }
+
+  rrect(r, 8, "#0e0b1a");
+  const borderColor = isLogged ? GREEN : (hover ? CYAN : "#8c5ae6");
+  strokeBox(r, 8, borderColor, hover ? 2 : 1);
+
+  // Tiêu đề Vàng kim rực rỡ thương hiệu HaloDae
+  setFont(12, true);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(0,0,0,0.8)";
+  ctx.fillText("HÀNH TRÌNH TỪ ZERO - HERO / 1,000,000$ BỞI HALODAE", r.cx + 1, r.y + 14);
+  ctx.fillStyle = GOLD;
+  ctx.fillText("HÀNH TRÌNH TỪ ZERO - HERO / 1,000,000$ BỞI HALODAE", r.cx, r.y + 13);
+
+  // Nút bấm Đăng Nhập / Trạng Thái Đồng Bộ Firebase tích hợp
+  const btnR = FOOTER_LOGIN_BTN;
+  const btnHover = hover || hit(btnR, mouse);
+
+  if (isLogged) {
+    const btnBg = btnHover ? "#0c2619" : "#081a12";
+    rrect(btnR, 6, btnBg);
+    strokeBox(btnR, 6, GREEN, btnHover ? 2 : 1);
+    drawGlowRect(btnR, GREEN, 0.15 + 0.15 * pulse, 6, 3);
+
+    // Radar beacon xanh ngọc bích nhấp nháy bên trái
+    const dotAlpha = 0.55 + 0.45 * pulse;
+    ctx.save();
+    ctx.globalAlpha = dotAlpha;
+    ctx.fillStyle = GREEN;
+    ctx.beginPath();
+    ctx.arc(btnR.x + 16, btnR.cy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    const uName = (G.cloudUser || "HALODAE").toUpperCase();
+    setFont(12, true);
+    ctx.fillStyle = btnHover ? WHITE : GREEN;
+    ctx.fillText(uName, btnR.cx, btnR.cy);
+  } else {
+    const btnBg = btnHover ? "#182a46" : "#0f192d";
+    rrect(btnR, 6, btnBg);
+    const strokeC = btnHover ? CYAN : "#00b4e6";
+    strokeBox(btnR, 6, strokeC, btnHover ? 2 : 1);
+    drawGlowRect(btnR, CYAN, 0.12 + 0.12 * pulse, 6, 3);
+
+    setFont(12, true);
+    ctx.fillStyle = btnHover ? WHITE : "#bde5ff";
+    ctx.fillText("ĐĂNG NHẬP", btnR.cx, btnR.cy);
+  }
+  ctx.restore();
+}
 function drawMap(pulse) {
   // Tìm mốc mục tiêu kế tiếp chưa đạt
   let nextIdx = -1;
@@ -1744,7 +2674,7 @@ function drawModal() {
 }
 
 function drawModalCard() {
-  const borderCol = G.modalTab === 0 ? GREEN : (G.modalTab === 1 ? CYAN : (G.modalTab === 2 ? GOLD : "#b46eff"));
+  const borderCol = G.modalTab === 0 ? GREEN : (G.modalTab === 1 ? CYAN : (G.modalTab === 2 ? GOLD : (G.modalTab === 3 ? "#b46eff" : "#00d2ff")));
   const pulse = (Math.sin(V.anim * 3.0) + 1.0) / 2.0;
   drawGlowRect(MODAL, borderCol, 0.09 + 0.12 * pulse, 12, 4);
   rrect(MODAL, 12, "#0e101c"); strokeBox(MODAL, 12, borderCol, 2);
@@ -1777,6 +2707,13 @@ function drawModalCard() {
   if (t3) drawGlowRect(TAB_BACKUP_BTN, "#b46eff", 0.1, 6, 2);
   else if (h3) drawGlowRect(TAB_BACKUP_BTN, "#648cbe", 0.06, 6, 2);
   text("4. TÂM LÝ & SAO LƯU", 12, t3 ? "#be82ff" : (h3 ? WHITE : MUTED), TAB_BACKUP_BTN.cx, TAB_BACKUP_BTN.cy, "c", true, false);
+
+  const t4 = G.modalTab === 4, h4 = hit(TAB_CLOUD_BTN, mouse);
+  rrect(TAB_CLOUD_BTN, 6, t4 ? "#102636" : (h4 ? "#1c2434" : "#121624"));
+  strokeBox(TAB_CLOUD_BTN, 6, t4 ? CYAN : (h4 ? "#648cbe" : "#32465f"), (t4 || h4) ? 2 : 1);
+  if (t4) drawGlowRect(TAB_CLOUD_BTN, CYAN, 0.1, 6, 2);
+  else if (h4) drawGlowRect(TAB_CLOUD_BTN, "#648cbe", 0.06, 6, 2);
+  text("5. ĐỒNG BỘ ☁️", 12, t4 ? CYAN : (h4 ? WHITE : MUTED), TAB_CLOUD_BTN.cx, TAB_CLOUD_BTN.cy, "c", true, false);
 
   button(BTN_TIME_INFO, "Giờ máy: " + getSystemEnergy().label, CYAN, 11);
 
@@ -1912,12 +2849,39 @@ function drawModalCard() {
     // Nút xác nhận chuyển đổi
     button(BTN_EXECUTE_CONV, `Xác nhận chuyển ${amt.toLocaleString("en-US")} ${fn} -> ${tn}`, CYAN, 13);
 
-    // Hộp lưu ý
-    const noteBox = R(70, 406, 844, 116); rrect(noteBox, 6, "#121826"); strokeBox(noteBox, 6, "#233046", 1);
-    text("QUY TẮC QUẢN LÝ TIỀN TỆ 3 NGUỒN & TỶ GIÁ VNĐ:", 12, GOLD, 90, 424, "l", true, false);
-    text("1. 3 nguồn tài sản: 🪙 Vàng (Ví trade)  <->  💎 Kim Cương (Quỹ dự phòng)  <->  🏦 Bank (Tài khoản ngân hàng ngoài sàn).", 11, TEXT_LIGHT, 90, 444, "l", false, false);
-    text("2. Tỷ giá cố định 1:1: 1 Vàng = 1 Kim Cương = $1 Bank = 26,000 VNĐ (Ví dụ: 10 Vàng = 260k VNĐ, 1,000 Vàng = 26 triệu VNĐ).", 11, TEXT_LIGHT, 90, 464, "l", false, false);
-    text("3. Nếu Bank bị ghi nợ âm do ứng cứu cháy tài khoản, có thể nạp từ Vàng hoặc Kim Cương sang Bank để trả dần nợ.", 11, CYAN, 90, 484, "l", false, false);
+    // Bảng Nhật Ký Chuyển Đổi Tiền (Lịch sử chuyển vốn kèm ngày giờ)
+    const histBox = R(70, 404, 844, 122);
+    rrect(histBox, 6, "#121826"); strokeBox(histBox, 6, "#233046", 1);
+    const history = G.convHistory || [];
+    const totalPages = Math.max(1, Math.ceil(history.length / 3));
+    const curP = Math.min(G.convPage || 0, totalPages - 1);
+
+    text("📜 NHẬT KÝ CHUYỂN ĐỔI TIỀN (NGÀY GIỜ & TỶ GIÁ CHUYỂN)", 12, GOLD, 86, 418, "l", true, false);
+    text(`Trang ${curP + 1} / ${totalPages} (${history.length} lần chuyển)`, 11, MUTED, 750, 418, "r", false, false);
+    button(BTN_CONV_PREV, "< Trước", CYAN, 10);
+    button(BTN_CONV_NEXT, "Sau >", CYAN, 10);
+
+    if (history.length === 0) {
+      text("Chưa có giao dịch chuyển đổi nào. Mọi lần chuyển đổi Vàng ⬄ Kim Cương ⬄ Bank sẽ được lưu lại kèm ngày giờ tại đây!", 11, MUTED, histBox.cx, 470, "c", false, false);
+    } else {
+      const pageItems = history.slice(curP * 3, curP * 3 + 3);
+      pageItems.forEach((item, idx) => {
+        const ry = 432 + idx * 28;
+        const rowR = R(78, ry, 828, 25);
+        rrect(rowR, 4, idx % 2 === 0 ? "#182032" : "#141a2a");
+        strokeBox(rowR, 4, "#243248", 1);
+
+        const fn = CURRENCY_NAMES[item.fromCur] || "Vàng";
+        const tn = CURRENCY_NAMES[item.toCur] || "Bank";
+        const fi = CURRENCY_ICONS[item.fromCur] || "🪙";
+        const ti = CURRENCY_ICONS[item.toCur] || "🏦";
+
+        text(`🕒 ${item.timeStr}`, 10, CYAN, 88, rowR.cy, "l", false, false);
+        text(`Chuyển ${item.amount.toLocaleString("en-US")} ${fi} ${fn}  ➔  ${item.amount.toLocaleString("en-US")} ${ti} ${tn}`, 11, GOLD, 260, rowR.cy, "l", true, false);
+        text(`~ ${item.vnd.toLocaleString("en-US")} VNĐ`, 11, "#96ffa0", 650, rowR.cy, "l", true, false);
+        text("✓ Hoàn thành", 10, GREEN, 840, rowR.cy, "l", true, false);
+      });
+    }
   } else if (G.modalTab === 2) {
     // TAB 2: BIỂU ĐỒ & CHỈ SỐ HIỆU SUẤT TRADING
     const stats = calcStats();
@@ -2082,6 +3046,80 @@ function drawModalCard() {
     text(`- Đã hoàn thành: ${doneDays()} / 1,000 ngày giao dịch`, 10, WHITE, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 60, "l", false, false);
     text(`- Trạng thái sấm sét: ${getSystemEnergy().label}`, 10, TEXT_LIGHT, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 80, "l", false, false);
     text("- Vị trí lưu: Web LocalStorage & File JSON (v4)", 9, MUTED, BACKUP_INFO_RECT.x + 14, BACKUP_INFO_RECT.y + 102, "l", false, false);
+  } else if (G.modalTab === 4) {
+    // TAB 4: ĐỒNG BỘ ĐÁM MÂY GOOGLE FIREBASE ☁️
+    const pLeft = R(58, 124, 440, 398);
+    rrect(pLeft, 8, "#101422"); strokeBox(pLeft, 8, "#24304b", 1);
+    text("TÀI KHOẢN GOOGLE FIREBASE ☁️", 13, GOLD, pLeft.cx, 142, "c", true, false);
+    text("Đồng bộ tiến trình 1,000 ngày tức thì giữa iPhone & PC:", 11, MUTED, pLeft.cx, 160, "c", false, false);
+
+    // Ô nhập Tên đăng nhập
+    text("TÊN ĐĂNG NHẬP (USERNAME):", 10, CYAN, CLOUD_USER_RECT.x, CLOUD_USER_RECT.y - 6, "l", true, false);
+    const uHover = hit(CLOUD_USER_RECT, mouse) || G.cloudUserFocused;
+    rrect(CLOUD_USER_RECT, 6, G.cloudUserFocused ? "#182436" : (uHover ? "#161e30" : "#121626"));
+    strokeBox(CLOUD_USER_RECT, 6, G.cloudUserFocused ? CYAN : (uHover ? "#648cb4" : "#2c3e5a"), G.cloudUserFocused ? 2 : 1);
+    const cursor = (Math.floor(V.anim * 3) % 2 === 0) ? "|" : "";
+    const userDisplay = G.cloudUser ? (G.cloudUser + (G.cloudUserFocused ? cursor : "")) : (G.cloudUserFocused ? ("Nhập username..." + cursor) : "Chạm để nhập tên đăng nhập...");
+    text(userDisplay, 12, G.cloudUser ? WHITE : MUTED, CLOUD_USER_RECT.x + 12, CLOUD_USER_RECT.cy, "l", Boolean(G.cloudUser), false);
+
+    // Ô nhập Mật khẩu
+    text("MẬT KHẨU (PASSWORD):", 10, CYAN, CLOUD_PASS_RECT.x, CLOUD_PASS_RECT.y - 6, "l", true, false);
+    const pHover = hit(CLOUD_PASS_RECT, mouse) || G.cloudPassFocused;
+    rrect(CLOUD_PASS_RECT, 6, G.cloudPassFocused ? "#182436" : (pHover ? "#161e30" : "#121626"));
+    strokeBox(CLOUD_PASS_RECT, 6, G.cloudPassFocused ? CYAN : (pHover ? "#648cb4" : "#2c3e5a"), G.cloudPassFocused ? 2 : 1);
+    const passDisplay = G.cloudPass ? ("•".repeat(Math.min(18, G.cloudPass.length)) + (G.cloudPassFocused ? cursor : "")) : (G.cloudPassFocused ? ("Nhập mật khẩu..." + cursor) : "Chạm để nhập mật khẩu (>= 6 ký tự)...");
+    text(passDisplay, 12, G.cloudPass ? GOLD : MUTED, CLOUD_PASS_RECT.x + 12, CLOUD_PASS_RECT.cy, "l", Boolean(G.cloudPass), false);
+
+    // 2 Nút Đăng nhập & Đăng ký
+    button(BTN_CLOUD_LOGIN, "🔐 ĐĂNG NHẬP", GREEN, 12);
+    button(BTN_CLOUD_REG, "✨ ĐĂNG KÝ", GOLD, 12);
+
+    // Thẻ thông tin tài khoản & trạng thái
+    rrect(CLOUD_CARD_RECT, 6, "#121828"); strokeBox(CLOUD_CARD_RECT, 6, "#283852", 1);
+    const isAuthed = Boolean(G.cloudUser && (G.cloudToken || G.cloudUid || G.cloudStatus.includes("Đã")));
+    text("THÔNG TIN TÀI KHOẢN HIỆN TẠI:", 11, CYAN, CLOUD_CARD_RECT.x + 14, CLOUD_CARD_RECT.y + 15, "l", true, false);
+    text(`- Tài khoản: ${G.cloudUser ? G.cloudUser.toUpperCase() : "Chưa đăng nhập"}`, 11, isAuthed ? GREEN : "#ff7878", CLOUD_CARD_RECT.x + 14, CLOUD_CARD_RECT.y + 35, "l", true, false);
+    text(`- Trạng thái: ${G.cloudStatus}`, 10, isAuthed ? "#38ef7d" : MUTED, CLOUD_CARD_RECT.x + 14, CLOUD_CARD_RECT.y + 55, "l", false, false);
+    text(`- Đồng bộ cuối: ${G.cloudLastSync || "Chưa đồng bộ"}`, 10, TEXT_LIGHT, CLOUD_CARD_RECT.x + 14, CLOUD_CARD_RECT.y + 75, "l", false, false);
+    const pIdCur = (G.firebaseConfig && G.firebaseConfig.projectId) ? G.firebaseConfig.projectId : "Chưa cấu hình";
+    text(`- Dự án Firebase: ${pIdCur}`, 10, (G.firebaseConfig && G.firebaseConfig.projectId) ? GOLD : "#ff8282", CLOUD_CARD_RECT.x + 14, CLOUD_CARD_RECT.y + 95, "l", false, false);
+
+    // Nút đăng xuất
+    button(BTN_CLOUD_LOGOUT, isAuthed ? "🚪 ĐĂNG XUẤT TÀI KHOẢN" : "Chưa đăng nhập", isAuthed ? RED : "#642832", 11);
+
+    // Khối bên phải: Thao tác & Cấu hình Firebase
+    const pRight = R(522, 124, 440, 398);
+    rrect(pRight, 8, "#101422"); strokeBox(pRight, 8, "#24304b", 1);
+    text("LƯU TRỮ ĐÁM MÂY FIREBASE ☁️", 13, GOLD, pRight.cx, 142, "c", true, false);
+    text("Bảo toàn trọn đời dữ liệu tài khoản giao dịch (Google Cloud 0đ):", 11, MUTED, pRight.cx, 160, "c", false, false);
+
+    button(BTN_CLOUD_SAVE, "⬆️ LƯU LÊN ĐÁM MÂY (Cloud Save)", GREEN, 12);
+    button(BTN_CLOUD_LOAD, "⬇️ TẢI TỪ ĐÁM MÂY (Cloud Load)", GOLD, 12);
+
+    // Checkbox tự động đồng bộ
+    const autoHover = hit(BTN_CLOUD_AUTOSYNC, mouse);
+    rrect(BTN_CLOUD_AUTOSYNC, 6, G.cloudAutoSync ? "#142c20" : (autoHover ? "#1c2436" : "#121626"));
+    strokeBox(BTN_CLOUD_AUTOSYNC, 6, G.cloudAutoSync ? GREEN : "#2d3c56", 1);
+    checkbox(R(BTN_CLOUD_AUTOSYNC.x + 10, BTN_CLOUD_AUTOSYNC.cy - 7, 14, 14), G.cloudAutoSync, autoHover, GREEN);
+    text("Tự động đồng bộ lên Firebase mỗi khi lưu game", 11, G.cloudAutoSync ? GREEN : TEXT_LIGHT, BTN_CLOUD_AUTOSYNC.x + 34, BTN_CLOUD_AUTOSYNC.cy, "l", true, false);
+
+    // Khung cấu hình dịch vụ Google Firebase
+    rrect(CLOUD_BOX_RECT, 6, "#121828"); strokeBox(CLOUD_BOX_RECT, 6, "#283852", 1);
+    text("CẤU HÌNH GOOGLE FIREBASE (0đ MIỄN PHÍ):", 11, CYAN, CLOUD_BOX_RECT.x + 14, CLOUD_BOX_RECT.y + 16, "l", true, false);
+
+    const pId = (G.firebaseConfig && G.firebaseConfig.projectId) ? G.firebaseConfig.projectId : "(Chưa có Project ID - Bấm Cấu Hình)";
+    const rawKey = (G.firebaseConfig && G.firebaseConfig.apiKey) ? G.firebaseConfig.apiKey : "";
+    const keyDisp = rawKey.length > 12 ? (rawKey.slice(0, 8) + "..." + rawKey.slice(-4)) : (rawKey || "(Chưa có API Key)");
+    text(`- Dự án (Project ID): ${pId}`, 10, TEXT_LIGHT, CLOUD_BOX_RECT.x + 14, CLOUD_BOX_RECT.y + 38, "l", false, false);
+    text(`- Khóa API (API Key): ${keyDisp}`, 10, TEXT_LIGHT, CLOUD_BOX_RECT.x + 14, CLOUD_BOX_RECT.y + 58, "l", false, false);
+    text("- Cơ sở dữ liệu: Google Cloud Firestore (Toàn cầu 0đ)", 9, MUTED, CLOUD_BOX_RECT.x + 14, CLOUD_BOX_RECT.y + 78, "l", false, false);
+    text("- Đồng bộ thời gian thực: Tự động sao lưu tiến trình an toàn giữa iPhone & PC.", 9, GREEN, CLOUD_BOX_RECT.x + 14, CLOUD_BOX_RECT.y + 98, "l", false, false);
+    const fbReady = Boolean(G.firebaseConfig && G.firebaseConfig.projectId && G.firebaseConfig.apiKey);
+    const stReady = fbReady ? "✅ Sẵn sàng kết nối Google Firebase" : "⚠️ Chưa nhập API Key / Project ID (Bấm Cấu Hình)";
+    text(`- Trạng thái: ${stReady}`, 9, fbReady ? "#38ef7d" : "#ffb446", CLOUD_BOX_RECT.x + 14, CLOUD_BOX_RECT.y + 118, "l", false, false);
+
+    button(BTN_CONFIG_EDIT, "⚙️ Cấu Hình Firebase", "#b482ff", 11);
+    button(BTN_CONFIG_TEST, "⚡ Kiểm Tra Kết Nối", CYAN, 11);
   }
 }
 
@@ -2141,6 +3179,7 @@ function frame() {
   drawBosses();
   drawDiscipline();
   drawBonus();
+  drawFooterBanner(mouse, pulse);
   drawMap(pulse);
 
   // Sóng xung kích khi bấm chuột
@@ -2207,25 +3246,82 @@ function pos(e) {
   const b = cv.getBoundingClientRect();
   return { x: (e.clientX - b.left) * W / b.width, y: (e.clientY - b.top) * H / b.height };
 }
+let lastTouchTime = 0;
 cv.addEventListener("mousemove", e => { mouse = pos(e); });
 cv.addEventListener("mouseleave", () => { mouse = { x: -1, y: -1 }; });
-cv.addEventListener("click", e => { click(pos(e)); });
+cv.addEventListener("touchstart", e => {
+  if (e.touches.length > 0) mouse = pos(e.touches[0]);
+}, { passive: true });
+cv.addEventListener("touchend", e => {
+  lastTouchTime = Date.now();
+  if (e.changedTouches.length > 0) {
+    const p = pos(e.changedTouches[0]);
+    mouse = p;
+    click(p);
+  }
+  e.preventDefault();
+}, { passive: false });
+cv.addEventListener("click", e => {
+  if (Date.now() - lastTouchTime < 450) return;
+  click(pos(e));
+});
 cv.addEventListener("wheel", e => { if (G.modal && G.modalTab === 0 && !G.marginCallOpen) { e.preventDefault(); setPage(G.page + (e.deltaY > 0 ? 1 : -1)); } }, { passive: false });
 window.addEventListener("keydown", e => {
   if (G.marginCallOpen) return;
   if (!G.modal) return;
-  if (e.key === "Escape") G.modal = false;
-  else if (G.modalTab === 0 && (e.key === "ArrowLeft" || e.key === "PageUp")) setPage(G.page - 1);
+  if (e.key === "Escape") { G.modal = false; return; }
+  if (G.modalTab === 0 && (e.key === "ArrowLeft" || e.key === "PageUp")) setPage(G.page - 1);
   else if (G.modalTab === 0 && (e.key === "ArrowRight" || e.key === "PageDown")) setPage(G.page + 1);
+  else if (G.modalTab === 4) {
+    if (G.cloudUserFocused) {
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        G.cloudUser = G.cloudUser.slice(0, -1);
+      } else if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        G.cloudUserFocused = false;
+        G.cloudPassFocused = true;
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && G.cloudUser.length < 24) {
+        if (!/\s/.test(e.key)) {
+          e.preventDefault();
+          G.cloudUser += e.key.toLowerCase();
+        }
+      }
+    } else if (G.cloudPassFocused) {
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        G.cloudPass = G.cloudPass.slice(0, -1);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        cloudLogin(G.cloudUser, G.cloudPass);
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        G.cloudPassFocused = false;
+        G.cloudUserFocused = true;
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && G.cloudPass.length < 32) {
+        if (!/\s/.test(e.key)) {
+          e.preventDefault();
+          G.cloudPass += e.key;
+        }
+      }
+    }
+  }
 });
 
+// Lưu trữ an toàn tuyệt đối trên iOS Safari khi đổi app hoặc tắt tab
+window.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
+window.addEventListener("pagehide", () => save());
+window.addEventListener("beforeunload", () => save());
+
 load(); recalc(); V.cap = G.capital; V.xp = G.xp;
+loadCloudSettings();
 syncInputWithNextDay();
 const params = new URLSearchParams(window.location.search);
 if (params.get("modal")) { G.modal = true; G.modalTab = 0; }
 if (params.get("pocket") || params.get("bank")) { G.modal = true; G.modalTab = 1; }
 if (params.get("stats")) { G.modal = true; G.modalTab = 2; }
 if (params.get("backup")) { G.modal = true; G.modalTab = 3; }
+if (params.get("cloud") || params.get("sync")) { G.modal = true; G.modalTab = 4; }
 if (params.get("margin")) { G.coins = 0; G.gems = 1000; checkMarginCall(); }
 if (params.get("margin2")) { G.coins = 0; G.gems = 0; checkMarginCall(); }
 requestAnimationFrame(frame);
